@@ -11,6 +11,9 @@ The [Adobe After Effects plugin SDK](https://developer.adobe.com/after-effects/)
  * [Vulkan SDK](https://vulkan.lunarg.com/)
  * [Adobe After Effects plugin SDK](https://developer.adobe.com/after-effects/)
 
+### OSX:
+ * [MoltenVK](https://github.com/KhronosGroup/MoltenVK)
+
 ## Building
 
 Clone the repository with submodules:
@@ -25,7 +28,7 @@ See [extern/Adobe After Effects SDK](extern/Adobe%20After%20Effects%20SDK/README
 
 #### Visual Studio
 
-Ppen `CMakeLists.txt` using Visual Studio's [built-in support for opening CMake projects](https://blogs.msdn.microsoft.com/vcblog/2016/10/05/cmake-support-in-visual-studio/) and build.
+Open `CMakeLists.txt` using Visual Studio's [built-in support for opening CMake projects](https://blogs.msdn.microsoft.com/vcblog/2016/10/05/cmake-support-in-visual-studio/) and build.
 
 The compiled plugin will be found in `build/bin/{Debug,Release}/Vulkanator.aex`
 
@@ -35,6 +38,6 @@ With the [CMake Tools extension](https://marketplace.visualstudio.com/items?item
 [C/C++ extensions](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools), open the top level folder as a cmake-project and build.
 The compiled plugin will be found in `build/bin/Vulkanator.aex`
 
-### OSX
+### OSX(MoltenVK)
 
 _Coming soon_
