@@ -1,4 +1,5 @@
 #include "Vulkanator.hpp"
+#include "vulkan/vulkan.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -178,26 +179,34 @@ PF_Err GlobalSetup(
 			return PF_Err_INTERNAL_STRUCT_DAMAGED;
 		}
 
-		// Ideally, a discrete GPU...
 		auto MinCriteria = PhysicalDevices.begin();
-		MinCriteria      = std::stable_partition(
-				 PhysicalDevices.begin(), MinCriteria,
-				 [](const vk::PhysicalDevice& CurPhysicalDevice) -> bool {
-                const vk::PhysicalDeviceProperties CurPhysicalDeviceProperties
-                    = CurPhysicalDevice.getProperties();
-                return CurPhysicalDeviceProperties.deviceType
-                    == vk::PhysicalDeviceType::eDiscreteGpu;
-            });
 
-		// With a lot of vram, more than 4GB
+		// Ideally, a discrete GPU...
+		const auto IsDGPU
+			= [](const vk::PhysicalDevice& PhysicalDevice) -> bool {
+			const vk::PhysicalDeviceProperties PhysicalDeviceProperties
+				= PhysicalDevice.getProperties();
+			return PhysicalDeviceProperties.deviceType
+				== vk::PhysicalDeviceType::eDiscreteGpu;
+		};
+
 		MinCriteria = std::stable_partition(
-			PhysicalDevices.begin(), MinCriteria,
-			[](const vk::PhysicalDevice& CurPhysicalDevice) -> bool {
-				const vk::PhysicalDeviceProperties CurPhysicalDeviceProperties
-					= CurPhysicalDevice.getProperties();
-				return CurPhysicalDeviceProperties.deviceType
-					== vk::PhysicalDeviceType::eDiscreteGpu;
-			});
+			PhysicalDevices.begin(), MinCriteria, IsDGPU);
+
+		// The more DeviceLocal VRAM the better
+		const auto ComparePhysicalDeviceVRAM
+			= [&](const vk::PhysicalDevice& PhysicalDeviceA,
+				  const vk::PhysicalDevice& PhysicalDeviceB) -> bool {
+			return VulkanUtils::GetLargestPhysicalDeviceHeap(
+					   PhysicalDeviceA, vk::MemoryHeapFlagBits::eDeviceLocal)
+					   .size
+				 > VulkanUtils::GetLargestPhysicalDeviceHeap(
+					   PhysicalDeviceB, vk::MemoryHeapFlagBits::eDeviceLocal)
+					   .size;
+		};
+
+		std::stable_sort(
+			PhysicalDevices.begin(), MinCriteria, ComparePhysicalDeviceVRAM);
 
 		// Found our most-ideal GPU!
 		GlobalParam->PhysicalDevice = PhysicalDevices.at(0);

@@ -1,4 +1,5 @@
 #include "VulkanUtils.hpp"
+#include "vulkan/vulkan.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -112,7 +113,9 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 		NewBufferDeviceMemory = std::move(NewDeviceMemory.value());
 	}
 	else
+	{
 		return std::nullopt; // Error allocating device memory
+	}
 
 	if( auto BindResult = Device.bindBufferMemory(
 			NewBuffer.get(), NewBufferDeviceMemory.get(), 0);
@@ -155,7 +158,9 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 		ExcludeProperties);
 
 	if( ImageMemoryIndex < 0 )
+	{
 		return std::nullopt; // Unable to find suitable memory index for buffer
+	}
 
 	vk::UniqueDeviceMemory NewImageDeviceMemory{};
 	if( auto NewDeviceMemory = AllocateDeviceMemory(
@@ -167,7 +172,6 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 	}
 	else
 	{
-
 		return std::nullopt; // Error allocating device memory
 	}
 
@@ -185,7 +189,6 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 std::optional<vk::UniqueShaderModule>
 	LoadShaderModule(const vk::Device& Device, std::span<const std::byte> Code)
 {
-	// File size must be valid
 	// Must be greater than, and must be a multiple of 4
 	if( !Code.size() || (Code.size() % 4 != 0) )
 	{
@@ -210,6 +213,29 @@ std::optional<vk::UniqueShaderModule>
 		return std::nullopt;
 	}
 	return ShaderModule;
+}
+
+vk::MemoryHeap GetLargestPhysicalDeviceHeap(
+	const vk::PhysicalDevice& PhysicalDevice, vk::MemoryHeapFlags Flags)
+{
+	const vk::PhysicalDeviceMemoryProperties PhysicalDeviceMemoryProperties
+		= PhysicalDevice.getMemoryProperties();
+	vk::DeviceSize MaxSize   = 0;
+	std::size_t    HeapIndex = ~std::size_t(0);
+	for( std::size_t i = 0; i < PhysicalDeviceMemoryProperties.memoryHeapCount;
+		 ++i )
+	{
+		if( (PhysicalDeviceMemoryProperties.memoryHeaps[i].flags & Flags)
+			== Flags )
+		{
+			if( PhysicalDeviceMemoryProperties.memoryHeaps[i].size > MaxSize )
+			{
+				MaxSize   = PhysicalDeviceMemoryProperties.memoryHeaps[i].size;
+				HeapIndex = i;
+			}
+		}
+	}
+	return PhysicalDeviceMemoryProperties.memoryHeaps[HeapIndex];
 }
 
 // This function will be called whenever the Vulkan backend has something to say

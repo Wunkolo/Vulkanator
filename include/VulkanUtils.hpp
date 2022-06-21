@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include "VulkanConfig.hpp"
+#include "vulkan/vulkan.hpp"
 
 namespace VulkanUtils
 {
@@ -62,6 +63,10 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 
 std::optional<vk::UniqueShaderModule>
 	LoadShaderModule(const vk::Device& Device, std::span<const std::byte> Code);
+
+vk::MemoryHeap GetLargestPhysicalDeviceHeap(
+	const vk::PhysicalDevice& PhysicalDevice,
+	vk::MemoryHeapFlags       Flags = vk::MemoryHeapFlagBits::eDeviceLocal);
 
 // Debug callback
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
