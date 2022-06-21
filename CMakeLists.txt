@@ -10,15 +10,16 @@ set( CMAKE_VERBOSE_MAKEFILE ON )
 
 if( WIN32 )
 elseif( APPLE )
-    # Architecture
-    add_compile_options( -m64 )
-    add_compile_options( -mssse3 )
-    # Optimizations
-    add_compile_options( -Ofast  )
-    # Warnings
-    add_compile_options( -Wall  )
-    add_compile_options( -Wextra  )
-    set( CMAKE_CXX_VISIBILITY_PRESET hidden)
+	# Architecture
+	add_compile_options( -m64 )
+	# SSSE3 is the safest baseline for any arbitrary OSX release.
+	add_compile_options( -mssse3 )
+	# Optimizations
+	add_compile_options( -Ofast  )
+	# Warnings
+	add_compile_options( -Wall  )
+	add_compile_options( -Wextra  )
+	set( CMAKE_CXX_VISIBILITY_PRESET hidden)
 endif()
 
 add_subdirectory( extern )
@@ -38,7 +39,7 @@ set(
 
 #cl /I "..\extern\Adobe After Effects SDK\Headers" /EP "%(Filename).r" > "$(IntDir)%(Filename).rr"
 #"$(ProjectDir)..\extern\Adobe After Effects SDK\Resources\PiPLTool" "$(IntDir)%(Filename).rr" "$(IntDir)%(Filename).rrc"
-#cl /D "MSWindows" /EP $(IntDir)%(Filename).rrc >               "$(ProjectDir)"\\"%(Filename)".rc
+#cl /D "MSWindows" /EP $(IntDir)%(Filename).rrc >			   "$(ProjectDir)"\\"%(Filename)".rc
 add_custom_command(
 	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.rr
 	COMMAND
@@ -72,21 +73,21 @@ target_include_directories(
 )
 
 cmrc_add_resource_library(
-	Vulkanator-Resources
-	ALIAS Resource::Vulkanator
-	NAMESPACE Vulkanator
+	${PROJECT_NAME}-Resources
+	ALIAS Resource::${PROJECT_NAME}
+	NAMESPACE ${PROJECT_NAME}
 	WHENCE ${CMAKE_BINARY_DIR}
 	"${CMAKE_BINARY_DIR}/shaders/Vulkanator.vert.spv"
 	"${CMAKE_BINARY_DIR}/shaders/Vulkanator.frag.spv"
 )
-add_dependencies( Vulkanator-Resources Shaders)
+add_dependencies( ${PROJECT_NAME}-Resources Shaders)
 
 target_link_libraries(
 	${PROJECT_NAME}
 	AESDK
 	glm
 	${Vulkan_LIBRARIES}
-	Resource::Vulkanator
+	Resource::${PROJECT_NAME}
 )
 
 install(
