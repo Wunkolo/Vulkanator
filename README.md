@@ -15,7 +15,7 @@ The [Adobe After Effects plugin SDK](https://developer.adobe.com/after-effects/)
 
 Clone the repository with submodules:
 
-`git@github.com:Wunkolo/Vulkanator.git`
+`git clone --recursive git@github.com:Wunkolo/Vulkanator.git`
 
 Download the [Adobe After Effects plugin SDK](https://developer.adobe.com/after-effects/) and extract the required library folders into `extern/Adobe After Effects SDK`.
 
