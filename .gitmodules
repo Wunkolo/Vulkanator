@@ -1,0 +1,6 @@
+[submodule "extern/glm"]
+	path = extern/glm
+	url = git@github.com:g-truc/glm.git
+[submodule "extern/cmrc"]
+	path = extern/cmrc
+	url = git@github.com:vector-of-bool/cmrc.git
