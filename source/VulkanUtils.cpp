@@ -114,12 +114,9 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	else
 		return std::nullopt; // Error allocating device memory
 
-	try
-	{
-		Device.bindBufferMemory(
+	if( auto BindResult = Device.bindBufferMemory(
 			NewBuffer.get(), NewBufferDeviceMemory.get(), 0);
-	}
-	catch( const std::exception& )
+		BindResult != vk::Result::eSuccess )
 	{
 		// Error binding buffer object to device memory
 		return std::nullopt;
@@ -174,11 +171,9 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 		return std::nullopt; // Error allocating device memory
 	}
 
-	try
-	{
-		Device.bindImageMemory(NewImage.get(), NewImageDeviceMemory.get(), 0);
-	}
-	catch( const std::exception& )
+	if( auto BindResult
+		= Device.bindImageMemory(NewImage.get(), NewImageDeviceMemory.get(), 0);
+		BindResult != vk::Result::eSuccess )
 	{
 		// Error binding image object to device memory
 		return std::nullopt;
