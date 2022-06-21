@@ -22,7 +22,7 @@ namespace VulkanUtils
 // 2: eR32G32B32A32Sfloat,
 constexpr std::array<vk::Format, 3> RenderFormats = {
 	vk::Format::eR8G8B8A8Unorm,
-	vk::Format::eR16G16B16A16Snorm,
+	vk::Format::eR16G16B16A16Unorm,
 	vk::Format::eR32G32B32A32Sfloat,
 };
 inline constexpr vk::Format DepthToFormat(std::size_t Depth)
