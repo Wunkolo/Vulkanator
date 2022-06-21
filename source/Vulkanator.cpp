@@ -181,8 +181,8 @@ PF_Err GlobalSetup(
 		// Ideally, a discrete GPU...
 		auto MinCriteria = PhysicalDevices.begin();
 		MinCriteria      = std::stable_partition(
-            PhysicalDevices.begin(), MinCriteria,
-            [](const vk::PhysicalDevice& CurPhysicalDevice) -> bool {
+				 PhysicalDevices.begin(), MinCriteria,
+				 [](const vk::PhysicalDevice& CurPhysicalDevice) -> bool {
                 const vk::PhysicalDeviceProperties CurPhysicalDeviceProperties
                     = CurPhysicalDevice.getProperties();
                 return CurPhysicalDeviceProperties.deviceType
@@ -954,7 +954,7 @@ PF_Err ParamsSetup(
 }
 
 ///////////////////////////////Quick
-///Utils////////////////////////////////////////////////
+/// Utils////////////////////////////////////////////////
 
 PF_Err GetParam(
 	const PF_InData* in_data, std::int32_t ParamIndex, PF_ParamDef& Param)
@@ -999,13 +999,13 @@ PF_Err SmartPreRender(
 	// request, to get the `max_result_rect` field
 	PF_RenderRequest FullRequest = {};
 	err                          = extra->cb->checkout_layer(
-        in_data->effect_ref,
-        // checkout ID has to be unique, so ParamCount keeps it out the way of
-        // our usual parameter ids
-        Vulkanator::ParamID::Input,
-        Vulkanator::ParamID::Input + Vulkanator::ParamID::COUNT, &FullRequest,
-        in_data->current_time, in_data->time_step, in_data->time_scale,
-        &InputCheckResult);
+								 in_data->effect_ref,
+								 // checkout ID has to be unique, so ParamCount keeps it out the way of
+								 // our usual parameter ids
+								 Vulkanator::ParamID::Input,
+								 Vulkanator::ParamID::Input + Vulkanator::ParamID::COUNT, &FullRequest,
+								 in_data->current_time, in_data->time_step, in_data->time_scale,
+								 &InputCheckResult);
 
 	// Then, we checkout the whole texture using the size we got previously
 	// Checkout Input layer
@@ -1500,7 +1500,13 @@ PF_Err SmartRender(
 
 	// Render Commands
 	vk::CommandBuffer& Cmd = SequenceParam->CommandBuffer.get();
-	Cmd.begin(BeginInfo);
+	if( auto BeginResult = Cmd.begin(BeginInfo);
+		BeginResult != vk::Result::eSuccess )
+	{
+		// Error beginning command buffer
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
 	{
 		////// Upload staging buffer into Input Image
 
@@ -1634,12 +1640,13 @@ PF_Err SmartRender(
 				//// Output Image ready for a read
 				// vk::ImageMemoryBarrier(
 				//	vk::AccessFlagBits::eColorAttachmentWrite,
-				//vk::AccessFlagBits::eTransferRead,
+				// vk::AccessFlagBits::eTransferRead,
 				//	vk::ImageLayout::eTransferSrcOptimal,
-				//vk::ImageLayout::eTransferSrcOptimal, 	VK_QUEUE_FAMILY_IGNORED,
-				//VK_QUEUE_FAMILY_IGNORED, OutputImage.get(),
+				// vk::ImageLayout::eTransferSrcOptimal,
+				// VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+				// OutputImage.get(),
 				//	vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor,
-				//0, 1, 0, 1)
+				// 0, 1, 0, 1)
 				//)
 			});
 		Cmd.copyImageToBuffer(
@@ -1647,13 +1654,25 @@ PF_Err SmartRender(
 			vk::ImageLayout::eTransferSrcOptimal,
 			SequenceParam->Cache.StagingBuffer.get(), {OutputBufferMapping});
 	}
-	Cmd.end();
+
+	if( auto EndResult = Cmd.end(); EndResult != vk::Result::eSuccess )
+	{
+		// Error beginning command buffer
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
 
 	// Submit GPU work to queue
 	vk::SubmitInfo SubmitInfo     = {};
 	SubmitInfo.commandBufferCount = 1;
 	SubmitInfo.pCommandBuffers    = &Cmd;
-	GlobalParam->Queue.submit(SubmitInfo, SequenceParam->Fence.get());
+
+	if( auto SubmitResult
+		= GlobalParam->Queue.submit(SubmitInfo, SequenceParam->Fence.get());
+		SubmitResult != vk::Result::eSuccess )
+	{
+		// Error submitting command buffer
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
 
 	// Wait for GPU work to finish
 	if( GlobalParam->Device->waitForFences(
