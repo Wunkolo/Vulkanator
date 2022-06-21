@@ -28,24 +28,22 @@ PF_Err About(
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
 	// Lock global handle
-	if( auto GlobalParam = static_cast<Vulkanator::GlobalParams*>(
-			suites.HandleSuite1()->host_lock_handle(in_data->global_data));
-		GlobalParam )
-	{
-		if( GlobalParam->PhysicalDevice )
-		{
-			// Print some info about the currently used physical device
-			const vk::PhysicalDeviceProperties DeviceProperties
-				= GlobalParam->PhysicalDevice.getProperties();
-			suites.ANSICallbacksSuite1()->sprintf(
-				out_data->return_msg,
-				"Vulkanator\n(Build date: " __TIMESTAMP__
-				")\n"
-				"GPU: %.64s",
-				DeviceProperties.deviceName.data());
+	const auto GlobalParam = static_cast<Vulkanator::GlobalParams*>(
+		suites.HandleSuite1()->host_lock_handle(in_data->global_data));
 
-			suites.HandleSuite1()->host_unlock_handle(in_data->global_data);
-		}
+	if( GlobalParam && GlobalParam->PhysicalDevice )
+	{
+		// Print some info about the currently used physical device
+		const vk::PhysicalDeviceProperties DeviceProperties
+			= GlobalParam->PhysicalDevice.getProperties();
+		suites.ANSICallbacksSuite1()->sprintf(
+			out_data->return_msg,
+			"Vulkanator\n(Build date: " __TIMESTAMP__
+			")\n"
+			"GPU: %.64s",
+			DeviceProperties.deviceName.data());
+
+		suites.HandleSuite1()->host_unlock_handle(in_data->global_data);
 	}
 
 	return PF_Err_NONE;
@@ -68,637 +66,627 @@ PF_Err GlobalSetup(
 						 | PF_OutFlag2_FLOAT_COLOR_AWARE;
 
 	// Allocate global handle
-	if( const PF_Handle GlobalDataHandle
-		= suites.HandleSuite1()->host_new_handle(
-			sizeof(Vulkanator::GlobalParams));
-		(out_data->global_data = GlobalDataHandle) )
+	const PF_Handle GlobalDataHandle = suites.HandleSuite1()->host_new_handle(
+		sizeof(Vulkanator::GlobalParams));
+
+	if( !GlobalDataHandle )
 	{
-		// Lock global handle
-		Vulkanator::GlobalParams* GlobalParam
-			= reinterpret_cast<Vulkanator::GlobalParams*>(
-				suites.HandleSuite1()->host_lock_handle(out_data->global_data));
-		// Global setup stuff
-		// ...
-		new(GlobalParam) Vulkanator::GlobalParams();
+		return PF_Err_OUT_OF_MEMORY;
+	}
 
-		// Create Vulkan 1.1 instance
-		vk::InstanceCreateInfo InstanceInfo = {};
+	out_data->global_data = GlobalDataHandle;
 
-		//////////// Vulkan Instance Creation
-		vk::ApplicationInfo ApplicationInfo = {};
-		ApplicationInfo.apiVersion          = VK_API_VERSION_1_1;
-		ApplicationInfo.applicationVersion  = VK_MAKE_VERSION(1, 0, 0);
-		ApplicationInfo.engineVersion       = VK_MAKE_VERSION(1, 0, 0);
-		InstanceInfo.pApplicationInfo       = &ApplicationInfo;
+	// Lock global handle
+	Vulkanator::GlobalParams* GlobalParam
+		= reinterpret_cast<Vulkanator::GlobalParams*>(
+			suites.HandleSuite1()->host_lock_handle(out_data->global_data));
+	// Global setup stuff
+	// ...
+	new(GlobalParam) Vulkanator::GlobalParams();
 
-		// Validation Layers
-		static const std::vector<const char*> InstanceLayers = {
+	// Create Vulkan 1.1 instance
+	vk::InstanceCreateInfo InstanceInfo = {};
+
+	//////////// Vulkan Instance Creation
+	vk::ApplicationInfo ApplicationInfo = {};
+	ApplicationInfo.apiVersion          = VK_API_VERSION_1_1;
+	ApplicationInfo.applicationVersion  = VK_MAKE_VERSION(1, 0, 0);
+	ApplicationInfo.engineVersion       = VK_MAKE_VERSION(1, 0, 0);
+	InstanceInfo.pApplicationInfo       = &ApplicationInfo;
+
+	// Validation Layers
+	static const std::vector<const char*> InstanceLayers = {
 #ifdef _DEBUG
-			"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation"
 #endif
-		};
-		InstanceInfo.enabledLayerCount   = std::uint32_t(InstanceLayers.size());
-		InstanceInfo.ppEnabledLayerNames = InstanceLayers.data();
+	};
+	InstanceInfo.enabledLayerCount   = std::uint32_t(InstanceLayers.size());
+	InstanceInfo.ppEnabledLayerNames = InstanceLayers.data();
 
-		static const std::vector<const char*> InstanceExtensions = {
+	static const std::vector<const char*> InstanceExtensions = {
 #ifdef _DEBUG
-			VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 #endif
-		};
-		InstanceInfo.enabledExtensionCount
-			= std::uint32_t(InstanceExtensions.size());
-		InstanceInfo.ppEnabledExtensionNames = InstanceExtensions.data();
+	};
+	InstanceInfo.enabledExtensionCount
+		= std::uint32_t(InstanceExtensions.size());
+	InstanceInfo.ppEnabledExtensionNames = InstanceExtensions.data();
 
-		if( auto InstanceResult = vk::createInstanceUnique(InstanceInfo);
-			InstanceResult.result == vk::Result::eSuccess )
+	if( auto InstanceResult = vk::createInstanceUnique(InstanceInfo);
+		InstanceResult.result == vk::Result::eSuccess )
+	{
+		GlobalParam->Instance = std::move(InstanceResult.value);
+	}
+	else
+	{
+		// Error creating instance
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	// Get dispatcher ready to load function pointers
+	GlobalParam->Dispatcher
+		= vk::DispatchLoaderDynamic(::vkGetInstanceProcAddr);
+	// Load extended function pointers: Instance-level
+	GlobalParam->Dispatcher.init(GlobalParam->Instance.get());
+
+	// Enable debug utils if debug messenger was added
+	if( std::find(
+			InstanceExtensions.begin(), InstanceExtensions.end(),
+			// std::string_view has a way to compare itself to `const char*`
+			// so by casting it, we get the actual string comparisons
+			// and not pointer-comparisons
+			std::string_view(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+		!= InstanceExtensions.end() )
+	{
+		vk::DebugUtilsMessengerCreateInfoEXT DebugCreateInfo{};
+		DebugCreateInfo.messageSeverity
+			= vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
+			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo
+			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
+			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning;
+		DebugCreateInfo.messageType
+			= vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+			| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
+			| vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral;
+		DebugCreateInfo.pfnUserCallback = VulkanUtils::DebugMessageCallback;
+		// DebugCreateInfo.pUserData = ; // Any extra data that you want to
+		// attach to debug callbacks
+		if( auto CallbackResult
+			= GlobalParam->Instance->createDebugUtilsMessengerEXTUnique(
+				DebugCreateInfo, nullptr, GlobalParam->Dispatcher);
+			CallbackResult.result == vk::Result::eSuccess )
 		{
-			GlobalParam->Instance = std::move(InstanceResult.value);
+			GlobalParam->DebugMessenger = std::move(CallbackResult.value);
 		}
 		else
 		{
-			// Error creating instance
+			// Error making callback function
 			return PF_Err_INTERNAL_STRUCT_DAMAGED;
 		}
+	}
 
-		// Get dispatcher ready to load function pointers
-		GlobalParam->Dispatcher
-			= vk::DispatchLoaderDynamic(::vkGetInstanceProcAddr);
-		// Load extended function pointers: Instance-level
-		GlobalParam->Dispatcher.init(GlobalParam->Instance.get());
+	//////////// Logical Device Creation
+	// Iterate each of the physical devices and pick one
 
-		// Enable debug utils if debug messenger was added
-		if( std::find(
-				InstanceExtensions.begin(), InstanceExtensions.end(),
-				// std::string_view has a way to compare itself to `const char*`
-				// so by casting it, we get the actual string comparisons
-				// and not pointer-comparisons
-				std::string_view(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
-			!= InstanceExtensions.end() )
+	std::vector<vk::PhysicalDevice> PhysicalDevices;
+
+	if( auto EnumerateResult
+		= GlobalParam->Instance->enumeratePhysicalDevices();
+		EnumerateResult.result == vk::Result::eSuccess )
+	{
+		PhysicalDevices = EnumerateResult.value;
+	}
+	else
+	{
+		// Error iterating physical devices???
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	auto MinCriteria = PhysicalDevices.begin();
+
+	// Ideally, a discrete GPU...
+	const auto IsDGPU = [](const vk::PhysicalDevice& PhysicalDevice) -> bool {
+		const vk::PhysicalDeviceProperties PhysicalDeviceProperties
+			= PhysicalDevice.getProperties();
+		return PhysicalDeviceProperties.deviceType
+			== vk::PhysicalDeviceType::eDiscreteGpu;
+	};
+
+	MinCriteria
+		= std::stable_partition(PhysicalDevices.begin(), MinCriteria, IsDGPU);
+
+	// The more DeviceLocal VRAM the better
+	const auto ComparePhysicalDeviceVRAM
+		= [&](const vk::PhysicalDevice& PhysicalDeviceA,
+			  const vk::PhysicalDevice& PhysicalDeviceB) -> bool {
+		return VulkanUtils::GetLargestPhysicalDeviceHeap(
+				   PhysicalDeviceA, vk::MemoryHeapFlagBits::eDeviceLocal)
+				   .size
+			 > VulkanUtils::GetLargestPhysicalDeviceHeap(
+				   PhysicalDeviceB, vk::MemoryHeapFlagBits::eDeviceLocal)
+				   .size;
+	};
+
+	std::stable_sort(
+		PhysicalDevices.begin(), MinCriteria, ComparePhysicalDeviceVRAM);
+
+	// Found our most-ideal GPU!
+	GlobalParam->PhysicalDevice = PhysicalDevices.at(0);
+
+	// Allocate a graphics queue
+	std::vector<vk::DeviceQueueCreateInfo> QueueInfos{};
+
+	{
+		vk::DeviceQueueCreateInfo CurQueueInfo = {};
+		CurQueueInfo.queueFamilyIndex = 0; // Index 0 tends to be the generic
+										   // Graphics | Compute | Copy queue
+		CurQueueInfo.queueCount = 1;
+
+		static glm::f32 QueuePriority = 0.0f;
+		CurQueueInfo.pQueuePriorities = &QueuePriority;
+		QueueInfos.emplace_back(CurQueueInfo);
+	}
+
+	// Create Logical Device
+	vk::DeviceCreateInfo DeviceInfo = {};
+	DeviceInfo.queueCreateInfoCount = std::uint32_t(QueueInfos.size());
+	DeviceInfo.pQueueCreateInfos    = QueueInfos.data();
+
+	DeviceInfo.enabledExtensionCount   = 0u;
+	DeviceInfo.ppEnabledExtensionNames = nullptr;
+
+	DeviceInfo.enabledLayerCount   = 0u;
+	DeviceInfo.ppEnabledLayerNames = nullptr;
+
+	if( auto DeviceResult
+		= GlobalParam->PhysicalDevice.createDeviceUnique(DeviceInfo);
+		DeviceResult.result == vk::Result::eSuccess )
+	{
+		GlobalParam->Device = std::move(DeviceResult.value);
+	}
+	else
+	{
+		// Error creating device
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	// Load extended function pointers: Instance and Device-levels
+	GlobalParam->Dispatcher.init(
+		GlobalParam->Instance.get(), ::vkGetInstanceProcAddr,
+		GlobalParam->Device.get(), ::vkGetDeviceProcAddr);
+
+	// Create CommandPool
+
+	vk::CommandPoolCreateInfo CommandPoolInfo = {};
+	CommandPoolInfo.queueFamilyIndex          = 0;
+	CommandPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+
+	if( auto CommandPoolResult
+		= GlobalParam->Device->createCommandPoolUnique(CommandPoolInfo);
+		CommandPoolResult.result == vk::Result::eSuccess )
+	{
+		GlobalParam->CommandPool = std::move(CommandPoolResult.value);
+	}
+	else
+	{
+		// Error creating command pool
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	// Get queue that we will be dispatching work into
+	GlobalParam->Queue = GlobalParam->Device->getQueue(0, 0);
+
+	for( std::size_t i = 0; i < GlobalParam->RenderPasses.size(); ++i )
+	{
+		// Create primary render pass that we'll be using for rendering
+		vk::RenderPassCreateInfo RenderPassInfo = {};
+
+		vk::AttachmentDescription RenderPassAttachment = {};
+		RenderPassInfo.attachmentCount                 = 1;
+		RenderPassInfo.pAttachments                    = &RenderPassAttachment;
+
+		// Describe three different attachments for each bit-depth
+		RenderPassAttachment.format = VulkanUtils::RenderFormats[i];
+		// We don't care what it had in it before, since we're hitting every
+		// pixel with new color values
+		RenderPassAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+		// Store the output pixels
+		RenderPassAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+
+		// We don't do anything stencil-related
+		RenderPassAttachment.stencilLoadOp  = vk::AttachmentLoadOp::eDontCare;
+		RenderPassAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+
+		// We don't care what layout the image was initially
+		RenderPassAttachment.initialLayout
+			= vk::ImageLayout::eColorAttachmentOptimal;
+		// When we are done rendering, we want hte image in Transfer-Src
+		// optimal format for a transfer
+		RenderPassAttachment.finalLayout = vk::ImageLayout::eTransferSrcOptimal;
+
+		// Describe a subpass and what color attachments it uses
+		vk::SubpassDescription RenderPassSubpasses = {};
+		RenderPassInfo.subpassCount                = 1;
+		RenderPassInfo.pSubpasses                  = &RenderPassSubpasses;
+		RenderPassSubpasses.pipelineBindPoint
+			= vk::PipelineBindPoint::eGraphics;
+
+		// We only have 1 color attachment, so most of this can be null
+		RenderPassSubpasses.inputAttachmentCount    = 0u;
+		RenderPassSubpasses.pInputAttachments       = nullptr;
+		RenderPassSubpasses.pResolveAttachments     = nullptr;
+		RenderPassSubpasses.pDepthStencilAttachment = nullptr;
+		RenderPassSubpasses.preserveAttachmentCount = 0u;
+		RenderPassSubpasses.pPreserveAttachments    = nullptr;
+
+		// Our single color attachment
+		vk::AttachmentReference ColorAttachmentReference = {};
+
+		ColorAttachmentReference.attachment = 0;
+		ColorAttachmentReference.layout
+			= vk::ImageLayout::eColorAttachmentOptimal;
+
+		RenderPassSubpasses.colorAttachmentCount = 1;
+		RenderPassSubpasses.pColorAttachments    = &ColorAttachmentReference;
+
+		vk::SubpassDependency RenderPassSubpassDependency = {};
+		RenderPassInfo.dependencyCount                    = 1;
+		RenderPassInfo.pDependencies = &RenderPassSubpassDependency;
+
+		// We want this subpass to wait for everything in the command buffer
+		// before it
+		RenderPassSubpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		RenderPassSubpassDependency.dstSubpass = 0;
+
+		RenderPassSubpassDependency.srcStageMask
+			= vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		RenderPassSubpassDependency.dstStageMask
+			= vk::PipelineStageFlagBits::eColorAttachmentOutput;
+
+		RenderPassSubpassDependency.srcAccessMask = vk::AccessFlags();
+		RenderPassSubpassDependency.dstAccessMask
+			= vk::AccessFlagBits::eColorAttachmentWrite;
+
+		RenderPassSubpassDependency.dependencyFlags
+			= vk::DependencyFlagBits::eByRegion;
+
+		if( auto RenderPassResult
+			= GlobalParam->Device->createRenderPassUnique(RenderPassInfo);
+			RenderPassResult.result == vk::Result::eSuccess )
 		{
-			vk::DebugUtilsMessengerCreateInfoEXT DebugCreateInfo{};
-			DebugCreateInfo.messageSeverity
-				= vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
-				| vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo
-				| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
-				| vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning;
-			DebugCreateInfo.messageType
-				= vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
-				| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
-				| vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral;
-			DebugCreateInfo.pfnUserCallback = VulkanUtils::DebugMessageCallback;
-			// DebugCreateInfo.pUserData = ; // Any extra data that you want to
-			// attach to debug callbacks
-			if( auto CallbackResult
-				= GlobalParam->Instance->createDebugUtilsMessengerEXTUnique(
-					DebugCreateInfo, nullptr, GlobalParam->Dispatcher);
-				CallbackResult.result == vk::Result::eSuccess )
-			{
-				GlobalParam->DebugMessenger = std::move(CallbackResult.value);
-			}
-			else
-			{
-				// Error making callback function
-				return PF_Err_INTERNAL_STRUCT_DAMAGED;
-			}
-		}
-
-		//////////// Logical Device Creation
-		// Iterate each of the physical devices and pick one
-
-		std::vector<vk::PhysicalDevice> PhysicalDevices;
-
-		if( auto EnumerateResult
-			= GlobalParam->Instance->enumeratePhysicalDevices();
-			EnumerateResult.result == vk::Result::eSuccess )
-		{
-			PhysicalDevices = EnumerateResult.value;
-		}
-		else
-		{
-			// Error iterating physical devices???
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		auto MinCriteria = PhysicalDevices.begin();
-
-		// Ideally, a discrete GPU...
-		const auto IsDGPU
-			= [](const vk::PhysicalDevice& PhysicalDevice) -> bool {
-			const vk::PhysicalDeviceProperties PhysicalDeviceProperties
-				= PhysicalDevice.getProperties();
-			return PhysicalDeviceProperties.deviceType
-				== vk::PhysicalDeviceType::eDiscreteGpu;
-		};
-
-		MinCriteria = std::stable_partition(
-			PhysicalDevices.begin(), MinCriteria, IsDGPU);
-
-		// The more DeviceLocal VRAM the better
-		const auto ComparePhysicalDeviceVRAM
-			= [&](const vk::PhysicalDevice& PhysicalDeviceA,
-				  const vk::PhysicalDevice& PhysicalDeviceB) -> bool {
-			return VulkanUtils::GetLargestPhysicalDeviceHeap(
-					   PhysicalDeviceA, vk::MemoryHeapFlagBits::eDeviceLocal)
-					   .size
-				 > VulkanUtils::GetLargestPhysicalDeviceHeap(
-					   PhysicalDeviceB, vk::MemoryHeapFlagBits::eDeviceLocal)
-					   .size;
-		};
-
-		std::stable_sort(
-			PhysicalDevices.begin(), MinCriteria, ComparePhysicalDeviceVRAM);
-
-		// Found our most-ideal GPU!
-		GlobalParam->PhysicalDevice = PhysicalDevices.at(0);
-
-		// Allocate a graphics queue
-		std::vector<vk::DeviceQueueCreateInfo> QueueInfos{};
-
-		{
-			vk::DeviceQueueCreateInfo CurQueueInfo = {};
-			CurQueueInfo.queueFamilyIndex
-				= 0; // Index 0 tends to be the generic Graphics | Compute |
-					 // Copy queue
-			CurQueueInfo.queueCount = 1;
-
-			static glm::f32 QueuePriority = 0.0f;
-			CurQueueInfo.pQueuePriorities = &QueuePriority;
-			QueueInfos.emplace_back(CurQueueInfo);
-		}
-
-		// Create Logical Device
-		vk::DeviceCreateInfo DeviceInfo = {};
-		DeviceInfo.queueCreateInfoCount = std::uint32_t(QueueInfos.size());
-		DeviceInfo.pQueueCreateInfos    = QueueInfos.data();
-
-		DeviceInfo.enabledExtensionCount   = 0u;
-		DeviceInfo.ppEnabledExtensionNames = nullptr;
-
-		DeviceInfo.enabledLayerCount   = 0u;
-		DeviceInfo.ppEnabledLayerNames = nullptr;
-
-		if( auto DeviceResult
-			= GlobalParam->PhysicalDevice.createDeviceUnique(DeviceInfo);
-			DeviceResult.result == vk::Result::eSuccess )
-		{
-			GlobalParam->Device = std::move(DeviceResult.value);
-		}
-		else
-		{
-			// Error creating device
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		// Load extended function pointers: Instance and Device-levels
-		GlobalParam->Dispatcher.init(
-			GlobalParam->Instance.get(), ::vkGetInstanceProcAddr,
-			GlobalParam->Device.get(), ::vkGetDeviceProcAddr);
-
-		// Create CommandPool
-
-		vk::CommandPoolCreateInfo CommandPoolInfo = {};
-		CommandPoolInfo.queueFamilyIndex          = 0;
-		CommandPoolInfo.flags
-			= vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-
-		if( auto CommandPoolResult
-			= GlobalParam->Device->createCommandPoolUnique(CommandPoolInfo);
-			CommandPoolResult.result == vk::Result::eSuccess )
-		{
-			GlobalParam->CommandPool = std::move(CommandPoolResult.value);
+			GlobalParam->RenderPasses[i] = std::move(RenderPassResult.value);
 		}
 		else
 		{
 			// Error creating command pool
 			return PF_Err_INTERNAL_STRUCT_DAMAGED;
 		}
+	}
 
-		// Get queue that we will be dispatching work into
-		GlobalParam->Queue = GlobalParam->Device->getQueue(0, 0);
+	// Load shader modules from the virtual file system
+	const auto VertShaderFile = DataFS.open("shaders/Vulkanator.vert.spv");
+	const auto FragShaderFile = DataFS.open("shaders/Vulkanator.frag.spv");
 
-		for( std::size_t i = 0; i < GlobalParam->RenderPasses.size(); ++i )
-		{
-			// Create primary render pass that we'll be using for rendering
-			vk::RenderPassCreateInfo RenderPassInfo = {};
+	const auto VertShaderCode = std::as_bytes(
+		std::span(VertShaderFile.begin(), VertShaderFile.end()));
+	const auto FragShaderCode = std::as_bytes(
+		std::span(FragShaderFile.begin(), FragShaderFile.end()));
 
-			vk::AttachmentDescription RenderPassAttachment = {};
-			RenderPassInfo.attachmentCount                 = 1;
-			RenderPassInfo.pAttachments = &RenderPassAttachment;
-
-			// Describe three different attachments for each bit-depth
-			RenderPassAttachment.format = VulkanUtils::RenderFormats[i];
-			// We don't care what it had in it before, since we're hitting every
-			// pixel with new color values
-			RenderPassAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-			// Store the output pixels
-			RenderPassAttachment.storeOp = vk::AttachmentStoreOp::eStore;
-
-			// We don't do anything stencil-related
-			RenderPassAttachment.stencilLoadOp
-				= vk::AttachmentLoadOp::eDontCare;
-			RenderPassAttachment.stencilStoreOp
-				= vk::AttachmentStoreOp::eDontCare;
-
-			// We don't care what layout the image was initially
-			RenderPassAttachment.initialLayout
-				= vk::ImageLayout::eColorAttachmentOptimal;
-			// When we are done rendering, we want hte image in Transfer-Src
-			// optimal format for a transfer
-			RenderPassAttachment.finalLayout
-				= vk::ImageLayout::eTransferSrcOptimal;
-
-			// Describe a subpass and what color attachments it uses
-			vk::SubpassDescription RenderPassSubpasses = {};
-			RenderPassInfo.subpassCount                = 1;
-			RenderPassInfo.pSubpasses                  = &RenderPassSubpasses;
-			RenderPassSubpasses.pipelineBindPoint
-				= vk::PipelineBindPoint::eGraphics;
-
-			// We only have 1 color attachment, so most of this can be null
-			RenderPassSubpasses.inputAttachmentCount    = 0u;
-			RenderPassSubpasses.pInputAttachments       = nullptr;
-			RenderPassSubpasses.pResolveAttachments     = nullptr;
-			RenderPassSubpasses.pDepthStencilAttachment = nullptr;
-			RenderPassSubpasses.preserveAttachmentCount = 0u;
-			RenderPassSubpasses.pPreserveAttachments    = nullptr;
-
-			// Our single color attachment
-			vk::AttachmentReference ColorAttachmentReference = {};
-
-			ColorAttachmentReference.attachment = 0;
-			ColorAttachmentReference.layout
-				= vk::ImageLayout::eColorAttachmentOptimal;
-
-			RenderPassSubpasses.colorAttachmentCount = 1;
-			RenderPassSubpasses.pColorAttachments = &ColorAttachmentReference;
-
-			vk::SubpassDependency RenderPassSubpassDependency = {};
-			RenderPassInfo.dependencyCount                    = 1;
-			RenderPassInfo.pDependencies = &RenderPassSubpassDependency;
-
-			// We want this subpass to wait for everything in the command buffer
-			// before it
-			RenderPassSubpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			RenderPassSubpassDependency.dstSubpass = 0;
-
-			RenderPassSubpassDependency.srcStageMask
-				= vk::PipelineStageFlagBits::eColorAttachmentOutput;
-			RenderPassSubpassDependency.dstStageMask
-				= vk::PipelineStageFlagBits::eColorAttachmentOutput;
-
-			RenderPassSubpassDependency.srcAccessMask = vk::AccessFlags();
-			RenderPassSubpassDependency.dstAccessMask
-				= vk::AccessFlagBits::eColorAttachmentWrite;
-
-			RenderPassSubpassDependency.dependencyFlags
-				= vk::DependencyFlagBits::eByRegion;
-
-			if( auto RenderPassResult
-				= GlobalParam->Device->createRenderPassUnique(RenderPassInfo);
-				RenderPassResult.result == vk::Result::eSuccess )
-			{
-				GlobalParam->RenderPasses[i]
-					= std::move(RenderPassResult.value);
-			}
-			else
-			{
-				// Error creating command pool
-				return PF_Err_INTERNAL_STRUCT_DAMAGED;
-			}
-		}
-
-		// Load shader modules from the virtual file system
-		const auto VertShaderFile = DataFS.open("shaders/Vulkanator.vert.spv");
-		const auto FragShaderFile = DataFS.open("shaders/Vulkanator.frag.spv");
-
-		const auto VertShaderCode = std::as_bytes(
-			std::span(VertShaderFile.begin(), VertShaderFile.end()));
-		const auto FragShaderCode = std::as_bytes(
-			std::span(FragShaderFile.begin(), FragShaderFile.end()));
-
-		vk::UniqueShaderModule VertShaderModule = {};
-		if( auto ShaderModuleResult = VulkanUtils::LoadShaderModule(
-				GlobalParam->Device.get(), VertShaderCode);
-			ShaderModuleResult )
-		{
-			VertShaderModule = std::move(ShaderModuleResult.value());
-		}
-		else
-		{
-			// Error loading shader module
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		vk::UniqueShaderModule FragShaderModule = {};
-		if( auto ShaderModuleResult = VulkanUtils::LoadShaderModule(
-				GlobalParam->Device.get(), FragShaderCode);
-			ShaderModuleResult )
-		{
-			FragShaderModule = std::move(ShaderModuleResult.value());
-		}
-		else
-		{
-			// Error loading shader module
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		///// Descriptor Pool
-
-		// Here we describe how large the pool should be for each descriptor
-		// type these should be resonably large such that it won't take up too
-		// much memory but will generally contain the "worst case" In this case,
-		// we are allocating a single descriptor set for each instance of the
-		// effect so 512 should be more than enough. If you add more descriptor
-		// types, then you will have to add to this poolsize
-		static vk::DescriptorPoolSize DescriptorPoolSizes[]
-			= {{vk::DescriptorType::eUniformBuffer, 512},
-			   {vk::DescriptorType::eCombinedImageSampler, 512}};
-
-		vk::DescriptorPoolCreateInfo DescriptorPoolInfo = {};
-		// Maximum number of total descriptor sets, upper bound
-		DescriptorPoolInfo.maxSets = 1024;
-
-		// Maximum number of each individual descriptor type
-		DescriptorPoolInfo.poolSizeCount
-			= std::uint32_t(glm::countof(DescriptorPoolSizes));
-		DescriptorPoolInfo.pPoolSizes = DescriptorPoolSizes;
-
-		if( auto DescriptorPoolResult
-			= GlobalParam->Device->createDescriptorPoolUnique(
-				DescriptorPoolInfo);
-			DescriptorPoolResult.result == vk::Result::eSuccess )
-		{
-			GlobalParam->DescriptorPool = std::move(DescriptorPoolResult.value);
-		}
-		else
-		{
-			// Error creating descriptor pool
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		///// DescriptorSet Layout
-
-		// Here we describe each of the bindings and what will be binded there
-		// This will match up to what we see in the shader
-		static vk::DescriptorSetLayoutBinding DescriptorLayoutBindings[] = {
-			vk::DescriptorSetLayoutBinding(
-				0,                                    // Binding 0...
-				vk::DescriptorType::eUniformBuffer,   // is a Uniform Buffer...
-				1,                                    // just one of them...
-				vk::ShaderStageFlagBits::eAllGraphics // available to the any
-													  // shader in the graphics
-													  // pipeline
-				),
-			vk::DescriptorSetLayoutBinding(
-				1,                                         // Binding 1...
-				vk::DescriptorType::eCombinedImageSampler, // is a combined
-														   // image sampler...
-				1,                                 // just one of them...
-				vk::ShaderStageFlagBits::eFragment // available to the fragment
-												   // shader
-				)};
-
-		// All of our shader bindings will now be packaged up into a single
-		// DescriptorSetLayout object
-		static vk::DescriptorSetLayoutCreateInfo DescriptorLayoutInfos(
-			{}, std::uint32_t(glm::countof(DescriptorLayoutBindings)),
-			DescriptorLayoutBindings);
-
-		if( auto DescriptorSetLayoutResult
-			= GlobalParam->Device->createDescriptorSetLayoutUnique(
-				DescriptorLayoutInfos);
-			DescriptorSetLayoutResult.result == vk::Result::eSuccess )
-		{
-			GlobalParam->RenderDescriptorSetLayout
-				= std::move(DescriptorSetLayoutResult.value);
-		}
-		else
-		{
-			// Error creating pipeline layout
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		///// Pipeline Layout
-		// Now, we describe the layout of the pipeline
-		// This is where you describe what descriptor sets and pushconstants
-		// and such that the shader will be consuming
-		vk::PipelineLayoutCreateInfo RenderPipelineLayoutInfo = {};
-		RenderPipelineLayoutInfo.setLayoutCount               = 1;
-		RenderPipelineLayoutInfo.pSetLayouts
-			= &GlobalParam->RenderDescriptorSetLayout.get();
-
-		// This shader takes in no push constants
-		RenderPipelineLayoutInfo.pushConstantRangeCount = 0;
-		RenderPipelineLayoutInfo.pPushConstantRanges    = nullptr;
-
-		if( auto RenderPipelineLayoutResult
-			= GlobalParam->Device->createPipelineLayoutUnique(
-				RenderPipelineLayoutInfo);
-			RenderPipelineLayoutResult.result == vk::Result::eSuccess )
-		{
-			GlobalParam->RenderPipelineLayout
-				= std::move(RenderPipelineLayoutResult.value);
-		}
-		else
-		{
-			// Error creating pipeline layout
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
-
-		///// Pipeline Creation
-
-		// Describe the stage and entry point of each shader
-		const vk::PipelineShaderStageCreateInfo ShaderStagesInfo[2] = {
-			vk::PipelineShaderStageCreateInfo(
-				{},                               // Flags
-				vk::ShaderStageFlagBits::eVertex, // Shader Stage
-				VertShaderModule.get(),           // Shader Module
-				"main", // Shader entry point function name
-				{}      // Shader specialization info
-				),
-			vk::PipelineShaderStageCreateInfo(
-				{},                                 // Flags
-				vk::ShaderStageFlagBits::eFragment, // Shader Stage
-				FragShaderModule.get(),             // Shader Module
-				"main", // Shader entry point function name
-				{}      // Shader specialization info
-				),
-		};
-
-		// We gotta describe everything about this pipeline up-front. so this is
-		// about to get pretty verbose
-		vk::PipelineVertexInputStateCreateInfo VertexInputState = {};
-		// Here, we describe how the shader will be consuming vertex data
-		VertexInputState.vertexBindingDescriptionCount = 1;
-		VertexInputState.pVertexBindingDescriptions
-			= &Vulkanator::Vertex::BindingDescription();
-		VertexInputState.vertexAttributeDescriptionCount
-			= std::uint32_t(Vulkanator::Vertex::AttributeDescription().size());
-		VertexInputState.pVertexAttributeDescriptions
-			= Vulkanator::Vertex::AttributeDescription().data();
-
-		// Here, we describe how the geometry will be drawn using the output of
-		// the vertex shader(point, line, triangle) Also primitive restarting
-		vk::PipelineInputAssemblyStateCreateInfo InputAssemblyState = {};
-		InputAssemblyState.topology = vk::PrimitiveTopology::eTriangleStrip;
-		InputAssemblyState.primitiveRestartEnable = false;
-
-		// Here, we describe the region of the framebuffer that will be rendered
-		// into This will be very dynamic in the context of after effects so we
-		// put in some default values for now and then at render-time we
-		// dynamically set the viewport and scissor regions
-		vk::PipelineViewportStateCreateInfo ViewportState = {};
-		static const vk::Viewport DefaultViewport = {0, 0, 16, 16, 0.0f, 1.0f};
-		static const vk::Rect2D   DefaultScissor  = {{0, 0}, {16, 16}};
-		ViewportState.viewportCount               = 1;
-		ViewportState.pViewports                  = &DefaultViewport;
-		ViewportState.scissorCount                = 1;
-		ViewportState.pScissors                   = &DefaultScissor;
-
-		// Here, we will basically describe how the rasterizer will dispatch
-		// fragment shaders from the vertex shaders
-		vk::PipelineRasterizationStateCreateInfo RasterizationState = {};
-		RasterizationState.depthClampEnable                         = false;
-		RasterizationState.rasterizerDiscardEnable                  = false;
-		RasterizationState.polygonMode     = vk::PolygonMode::eFill;
-		RasterizationState.cullMode        = vk::CullModeFlagBits::eNone;
-		RasterizationState.frontFace       = vk::FrontFace::eClockwise;
-		RasterizationState.depthBiasEnable = false;
-		RasterizationState.depthBiasConstantFactor = 0.0f;
-		RasterizationState.depthBiasClamp          = 0.0f;
-		RasterizationState.depthBiasSlopeFactor    = 0.0;
-		RasterizationState.lineWidth               = 1.0f;
-
-		// If we render into a multi-sample framebuffer, then these settings
-		// will be used for now, we are not though. so we just say that we are
-		// rendering into a single sample image
-		vk::PipelineMultisampleStateCreateInfo MultisampleState = {};
-		MultisampleState.rasterizationSamples  = vk::SampleCountFlagBits::e1;
-		MultisampleState.sampleShadingEnable   = false;
-		MultisampleState.minSampleShading      = 1.0f;
-		MultisampleState.pSampleMask           = nullptr;
-		MultisampleState.alphaToCoverageEnable = false;
-		MultisampleState.alphaToOneEnable      = false;
-
-		// Here, we describe how depth-stencil testing and comparisons will be
-		// made we aren't doing any, but we map it out here anyways in case we
-		// ever have a depth or stencil buffer to test against
-		vk::PipelineDepthStencilStateCreateInfo DepthStencilState = {};
-		DepthStencilState.depthTestEnable                         = false;
-		DepthStencilState.depthWriteEnable                        = false;
-		DepthStencilState.depthCompareOp        = vk::CompareOp::eNever;
-		DepthStencilState.depthBoundsTestEnable = false;
-		DepthStencilState.stencilTestEnable     = false;
-		DepthStencilState.front                 = vk::StencilOp::eKeep;
-		DepthStencilState.back                  = vk::StencilOp::eKeep;
-		DepthStencilState.minDepthBounds        = 0.0f;
-		DepthStencilState.maxDepthBounds        = 1.0f;
-
-		// Here, we describe how alpha-transparency will be handled
-		// per-attachment
-		//
-		vk::PipelineColorBlendStateCreateInfo ColorBlendState = {};
-		ColorBlendState.logicOpEnable                         = false;
-		ColorBlendState.logicOp         = vk::LogicOp::eClear;
-		ColorBlendState.attachmentCount = 1;
-
-		// We have just 1 attachment, and we arent doing alpha blending for now
-		// so we have this structure just to say "we arent doing blending"
-		vk::PipelineColorBlendAttachmentState BlendAttachmentState = {};
-		BlendAttachmentState.blendEnable                           = false;
-		BlendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eZero;
-		BlendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eZero;
-		BlendAttachmentState.colorBlendOp        = vk::BlendOp::eAdd;
-		BlendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eZero;
-		BlendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eZero;
-		BlendAttachmentState.alphaBlendOp        = vk::BlendOp::eAdd;
-		BlendAttachmentState.colorWriteMask
-			= vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
-			| vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-
-		ColorBlendState.pAttachments = &BlendAttachmentState;
-
-		// Here, we can describe everything about this pipeline that can be
-		// dynamically configured at run-time and will be read from the command
-		// buffer
-		vk::PipelineDynamicStateCreateInfo DynamicState = {};
-		vk::DynamicState                   DynamicStates[]
-			= {// The viewport and scissor of the framebuffer will be dynamic at
-			   // run-time
-			   // so we definately add these
-			   vk::DynamicState::eViewport, vk::DynamicState::eScissor};
-		DynamicState.dynamicStateCount
-			= std::uint32_t(glm::countof(DynamicStates));
-		DynamicState.pDynamicStates = DynamicStates;
-
-		// Create each of the graphics pipelines for each bit-depth
-		// These are all the same for each of the graphics pipelines
-		// so they can be out of the loop. Only renderpass will be different
-		vk::GraphicsPipelineCreateInfo RenderPipelineInfo = {};
-		RenderPipelineInfo.stageCount          = 2; // Vert + Frag stages
-		RenderPipelineInfo.pStages             = ShaderStagesInfo;
-		RenderPipelineInfo.pVertexInputState   = &VertexInputState;
-		RenderPipelineInfo.pInputAssemblyState = &InputAssemblyState;
-		RenderPipelineInfo.pViewportState      = &ViewportState;
-		RenderPipelineInfo.pRasterizationState = &RasterizationState;
-		RenderPipelineInfo.pMultisampleState   = &MultisampleState;
-		RenderPipelineInfo.pDepthStencilState  = &DepthStencilState;
-		RenderPipelineInfo.pColorBlendState    = &ColorBlendState;
-		RenderPipelineInfo.pDynamicState       = &DynamicState;
-		RenderPipelineInfo.subpass             = 0;
-		RenderPipelineInfo.layout = GlobalParam->RenderPipelineLayout.get();
-		for( std::size_t i = 0; i < GlobalParam->RenderPasses.size(); ++i )
-		{
-
-			// ~Compatible~ render passes that this pipeline will be used for
-			// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#renderpass-compatibility
-			RenderPipelineInfo.renderPass = GlobalParam->RenderPasses[i].get();
-
-			if( auto RenderPipelineResult
-				= GlobalParam->Device->createGraphicsPipelineUnique(
-					{}, RenderPipelineInfo);
-				RenderPipelineResult.result == vk::Result::eSuccess )
-			{
-				GlobalParam->RenderPipelines[i]
-					= std::move(RenderPipelineResult.value);
-			}
-			else
-			{
-				// Error creating graphics pipeline
-				return PF_Err_INTERNAL_STRUCT_DAMAGED;
-			}
-		}
-
-		// Create quad vertex buffer
-		std::tie(GlobalParam->MeshBuffer, GlobalParam->MeshBufferMemory)
-			= VulkanUtils::AllocateBuffer(
-				  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
-				  Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex),
-				  vk::BufferUsageFlagBits::eVertexBuffer,
-				  vk::MemoryPropertyFlagBits::eHostCached
-					  | vk::MemoryPropertyFlagBits::eHostCoherent)
-				  .value();
-
-		// Write vertex buffer data in
-		if( auto MapResult = GlobalParam->Device->mapMemory(
-				GlobalParam->MeshBufferMemory.get(), 0, VK_WHOLE_SIZE);
-			MapResult.result == vk::Result::eSuccess )
-		{
-			std::memcpy(
-				MapResult.value, Vulkanator::Quad.data(),
-				Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex));
-			GlobalParam->Device->unmapMemory(
-				GlobalParam->MeshBufferMemory.get());
-		}
-		else
-		{
-			// Error mapping staging buffer
-			return PF_Err_INTERNAL_STRUCT_DAMAGED;
-		}
+	vk::UniqueShaderModule VertShaderModule = {};
+	if( auto ShaderModuleResult = VulkanUtils::LoadShaderModule(
+			GlobalParam->Device.get(), VertShaderCode);
+		ShaderModuleResult )
+	{
+		VertShaderModule = std::move(ShaderModuleResult.value());
 	}
 	else
 	{
-		return PF_Err_OUT_OF_MEMORY;
+		// Error loading shader module
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	vk::UniqueShaderModule FragShaderModule = {};
+	if( auto ShaderModuleResult = VulkanUtils::LoadShaderModule(
+			GlobalParam->Device.get(), FragShaderCode);
+		ShaderModuleResult )
+	{
+		FragShaderModule = std::move(ShaderModuleResult.value());
+	}
+	else
+	{
+		// Error loading shader module
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	///// Descriptor Pool
+
+	// Here we describe how large the pool should be for each descriptor
+	// type these should be resonably large such that it won't take up too
+	// much memory but will generally contain the "worst case" In this case,
+	// we are allocating a single descriptor set for each instance of the
+	// effect so 512 should be more than enough. If you add more descriptor
+	// types, then you will have to add to this poolsize
+	static vk::DescriptorPoolSize DescriptorPoolSizes[]
+		= {{vk::DescriptorType::eUniformBuffer, 512},
+		   {vk::DescriptorType::eCombinedImageSampler, 512}};
+
+	vk::DescriptorPoolCreateInfo DescriptorPoolInfo = {};
+	// Maximum number of total descriptor sets, upper bound
+	DescriptorPoolInfo.maxSets = 1024;
+
+	// Maximum number of each individual descriptor type
+	DescriptorPoolInfo.poolSizeCount
+		= std::uint32_t(glm::countof(DescriptorPoolSizes));
+	DescriptorPoolInfo.pPoolSizes = DescriptorPoolSizes;
+
+	if( auto DescriptorPoolResult
+		= GlobalParam->Device->createDescriptorPoolUnique(DescriptorPoolInfo);
+		DescriptorPoolResult.result == vk::Result::eSuccess )
+	{
+		GlobalParam->DescriptorPool = std::move(DescriptorPoolResult.value);
+	}
+	else
+	{
+		// Error creating descriptor pool
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	///// DescriptorSet Layout
+
+	// Here we describe each of the bindings and what will be binded there
+	// This will match up to what we see in the shader
+	static vk::DescriptorSetLayoutBinding DescriptorLayoutBindings[]
+		= {vk::DescriptorSetLayoutBinding(
+			   0,                                    // Binding 0...
+			   vk::DescriptorType::eUniformBuffer,   // is a Uniform Buffer...
+			   1,                                    // just one of them...
+			   vk::ShaderStageFlagBits::eAllGraphics // available to the any
+													 // shader in the graphics
+													 // pipeline
+			   ),
+		   vk::DescriptorSetLayoutBinding(
+			   1,                                         // Binding 1...
+			   vk::DescriptorType::eCombinedImageSampler, // is a combined
+														  // image sampler...
+			   1,                                         // just one of them...
+			   vk::ShaderStageFlagBits::eFragment // available to the fragment
+												  // shader
+			   )};
+
+	// All of our shader bindings will now be packaged up into a single
+	// DescriptorSetLayout object
+	static vk::DescriptorSetLayoutCreateInfo DescriptorLayoutInfos(
+		{}, std::uint32_t(glm::countof(DescriptorLayoutBindings)),
+		DescriptorLayoutBindings);
+
+	if( auto DescriptorSetLayoutResult
+		= GlobalParam->Device->createDescriptorSetLayoutUnique(
+			DescriptorLayoutInfos);
+		DescriptorSetLayoutResult.result == vk::Result::eSuccess )
+	{
+		GlobalParam->RenderDescriptorSetLayout
+			= std::move(DescriptorSetLayoutResult.value);
+	}
+	else
+	{
+		// Error creating pipeline layout
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	///// Pipeline Layout
+	// Now, we describe the layout of the pipeline
+	// This is where you describe what descriptor sets and pushconstants
+	// and such that the shader will be consuming
+	vk::PipelineLayoutCreateInfo RenderPipelineLayoutInfo = {};
+	RenderPipelineLayoutInfo.setLayoutCount               = 1;
+	RenderPipelineLayoutInfo.pSetLayouts
+		= &GlobalParam->RenderDescriptorSetLayout.get();
+
+	// This shader takes in no push constants
+	RenderPipelineLayoutInfo.pushConstantRangeCount = 0;
+	RenderPipelineLayoutInfo.pPushConstantRanges    = nullptr;
+
+	if( auto RenderPipelineLayoutResult
+		= GlobalParam->Device->createPipelineLayoutUnique(
+			RenderPipelineLayoutInfo);
+		RenderPipelineLayoutResult.result == vk::Result::eSuccess )
+	{
+		GlobalParam->RenderPipelineLayout
+			= std::move(RenderPipelineLayoutResult.value);
+	}
+	else
+	{
+		// Error creating pipeline layout
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
+	}
+
+	///// Pipeline Creation
+
+	// Describe the stage and entry point of each shader
+	const vk::PipelineShaderStageCreateInfo ShaderStagesInfo[2] = {
+		vk::PipelineShaderStageCreateInfo(
+			{},                               // Flags
+			vk::ShaderStageFlagBits::eVertex, // Shader Stage
+			VertShaderModule.get(),           // Shader Module
+			"main", // Shader entry point function name
+			{}      // Shader specialization info
+			),
+		vk::PipelineShaderStageCreateInfo(
+			{},                                 // Flags
+			vk::ShaderStageFlagBits::eFragment, // Shader Stage
+			FragShaderModule.get(),             // Shader Module
+			"main", // Shader entry point function name
+			{}      // Shader specialization info
+			),
+	};
+
+	// We gotta describe everything about this pipeline up-front. so this is
+	// about to get pretty verbose
+	vk::PipelineVertexInputStateCreateInfo VertexInputState = {};
+	// Here, we describe how the shader will be consuming vertex data
+	VertexInputState.vertexBindingDescriptionCount = 1;
+	VertexInputState.pVertexBindingDescriptions
+		= &Vulkanator::Vertex::BindingDescription();
+	VertexInputState.vertexAttributeDescriptionCount
+		= std::uint32_t(Vulkanator::Vertex::AttributeDescription().size());
+	VertexInputState.pVertexAttributeDescriptions
+		= Vulkanator::Vertex::AttributeDescription().data();
+
+	// Here, we describe how the geometry will be drawn using the output of
+	// the vertex shader(point, line, triangle) Also primitive restarting
+	vk::PipelineInputAssemblyStateCreateInfo InputAssemblyState = {};
+	InputAssemblyState.topology = vk::PrimitiveTopology::eTriangleStrip;
+	InputAssemblyState.primitiveRestartEnable = false;
+
+	// Here, we describe the region of the framebuffer that will be rendered
+	// into This will be very dynamic in the context of after effects so we
+	// put in some default values for now and then at render-time we
+	// dynamically set the viewport and scissor regions
+	vk::PipelineViewportStateCreateInfo ViewportState = {};
+	static const vk::Viewport DefaultViewport = {0, 0, 16, 16, 0.0f, 1.0f};
+	static const vk::Rect2D   DefaultScissor  = {{0, 0}, {16, 16}};
+	ViewportState.viewportCount               = 1;
+	ViewportState.pViewports                  = &DefaultViewport;
+	ViewportState.scissorCount                = 1;
+	ViewportState.pScissors                   = &DefaultScissor;
+
+	// Here, we will basically describe how the rasterizer will dispatch
+	// fragment shaders from the vertex shaders
+	vk::PipelineRasterizationStateCreateInfo RasterizationState = {};
+	RasterizationState.depthClampEnable                         = false;
+	RasterizationState.rasterizerDiscardEnable                  = false;
+	RasterizationState.polygonMode             = vk::PolygonMode::eFill;
+	RasterizationState.cullMode                = vk::CullModeFlagBits::eNone;
+	RasterizationState.frontFace               = vk::FrontFace::eClockwise;
+	RasterizationState.depthBiasEnable         = false;
+	RasterizationState.depthBiasConstantFactor = 0.0f;
+	RasterizationState.depthBiasClamp          = 0.0f;
+	RasterizationState.depthBiasSlopeFactor    = 0.0;
+	RasterizationState.lineWidth               = 1.0f;
+
+	// If we render into a multi-sample framebuffer, then these settings
+	// will be used for now, we are not though. so we just say that we are
+	// rendering into a single sample image
+	vk::PipelineMultisampleStateCreateInfo MultisampleState = {};
+	MultisampleState.rasterizationSamples  = vk::SampleCountFlagBits::e1;
+	MultisampleState.sampleShadingEnable   = false;
+	MultisampleState.minSampleShading      = 1.0f;
+	MultisampleState.pSampleMask           = nullptr;
+	MultisampleState.alphaToCoverageEnable = false;
+	MultisampleState.alphaToOneEnable      = false;
+
+	// Here, we describe how depth-stencil testing and comparisons will be
+	// made we aren't doing any, but we map it out here anyways in case we
+	// ever have a depth or stencil buffer to test against
+	vk::PipelineDepthStencilStateCreateInfo DepthStencilState = {};
+	DepthStencilState.depthTestEnable                         = false;
+	DepthStencilState.depthWriteEnable                        = false;
+	DepthStencilState.depthCompareOp        = vk::CompareOp::eNever;
+	DepthStencilState.depthBoundsTestEnable = false;
+	DepthStencilState.stencilTestEnable     = false;
+	DepthStencilState.front                 = vk::StencilOp::eKeep;
+	DepthStencilState.back                  = vk::StencilOp::eKeep;
+	DepthStencilState.minDepthBounds        = 0.0f;
+	DepthStencilState.maxDepthBounds        = 1.0f;
+
+	// Here, we describe how alpha-transparency will be handled
+	// per-attachment
+	//
+	vk::PipelineColorBlendStateCreateInfo ColorBlendState = {};
+	ColorBlendState.logicOpEnable                         = false;
+	ColorBlendState.logicOp                               = vk::LogicOp::eClear;
+	ColorBlendState.attachmentCount                       = 1;
+
+	// We have just 1 attachment, and we arent doing alpha blending for now
+	// so we have this structure just to say "we arent doing blending"
+	vk::PipelineColorBlendAttachmentState BlendAttachmentState = {};
+	BlendAttachmentState.blendEnable                           = false;
+	BlendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eZero;
+	BlendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eZero;
+	BlendAttachmentState.colorBlendOp        = vk::BlendOp::eAdd;
+	BlendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eZero;
+	BlendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+	BlendAttachmentState.alphaBlendOp        = vk::BlendOp::eAdd;
+	BlendAttachmentState.colorWriteMask
+		= vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
+		| vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+
+	ColorBlendState.pAttachments = &BlendAttachmentState;
+
+	// Here, we can describe everything about this pipeline that can be
+	// dynamically configured at run-time and will be read from the command
+	// buffer
+	vk::PipelineDynamicStateCreateInfo DynamicState = {};
+	vk::DynamicState                   DynamicStates[]
+		= {// The viewport and scissor of the framebuffer will be dynamic at
+		   // run-time
+		   // so we definately add these
+		   vk::DynamicState::eViewport, vk::DynamicState::eScissor};
+	DynamicState.dynamicStateCount = std::uint32_t(glm::countof(DynamicStates));
+	DynamicState.pDynamicStates    = DynamicStates;
+
+	// Create each of the graphics pipelines for each bit-depth
+	// These are all the same for each of the graphics pipelines
+	// so they can be out of the loop. Only renderpass will be different
+	vk::GraphicsPipelineCreateInfo RenderPipelineInfo = {};
+	RenderPipelineInfo.stageCount                     = 2; // Vert + Frag stages
+	RenderPipelineInfo.pStages                        = ShaderStagesInfo;
+	RenderPipelineInfo.pVertexInputState              = &VertexInputState;
+	RenderPipelineInfo.pInputAssemblyState            = &InputAssemblyState;
+	RenderPipelineInfo.pViewportState                 = &ViewportState;
+	RenderPipelineInfo.pRasterizationState            = &RasterizationState;
+	RenderPipelineInfo.pMultisampleState              = &MultisampleState;
+	RenderPipelineInfo.pDepthStencilState             = &DepthStencilState;
+	RenderPipelineInfo.pColorBlendState               = &ColorBlendState;
+	RenderPipelineInfo.pDynamicState                  = &DynamicState;
+	RenderPipelineInfo.subpass                        = 0;
+	RenderPipelineInfo.layout = GlobalParam->RenderPipelineLayout.get();
+	for( std::size_t i = 0; i < GlobalParam->RenderPasses.size(); ++i )
+	{
+
+		// ~Compatible~ render passes that this pipeline will be used for
+		// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#renderpass-compatibility
+		RenderPipelineInfo.renderPass = GlobalParam->RenderPasses[i].get();
+
+		if( auto RenderPipelineResult
+			= GlobalParam->Device->createGraphicsPipelineUnique(
+				{}, RenderPipelineInfo);
+			RenderPipelineResult.result == vk::Result::eSuccess )
+		{
+			GlobalParam->RenderPipelines[i]
+				= std::move(RenderPipelineResult.value);
+		}
+		else
+		{
+			// Error creating graphics pipeline
+			return PF_Err_INTERNAL_STRUCT_DAMAGED;
+		}
+	}
+
+	// Create quad vertex buffer
+	std::tie(GlobalParam->MeshBuffer, GlobalParam->MeshBufferMemory)
+		= VulkanUtils::AllocateBuffer(
+			  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
+			  Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex),
+			  vk::BufferUsageFlagBits::eVertexBuffer,
+			  vk::MemoryPropertyFlagBits::eHostCached
+				  | vk::MemoryPropertyFlagBits::eHostCoherent)
+			  .value();
+
+	// Write vertex buffer data in
+	if( auto MapResult = GlobalParam->Device->mapMemory(
+			GlobalParam->MeshBufferMemory.get(), 0, VK_WHOLE_SIZE);
+		MapResult.result == vk::Result::eSuccess )
+	{
+		std::memcpy(
+			MapResult.value, Vulkanator::Quad.data(),
+			Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex));
+		GlobalParam->Device->unmapMemory(GlobalParam->MeshBufferMemory.get());
+	}
+	else
+	{
+		// Error mapping staging buffer
+		return PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
 
 	return PF_Err_NONE;
@@ -750,121 +738,117 @@ PF_Err SequenceSetup(
 	}
 
 	// Allocate new sequence data
-	if( const PF_Handle SequenceDataHandle
-		= suites.HandleSuite1()->host_new_handle(
-			sizeof(Vulkanator::SequenceParams));
-		(out_data->sequence_data = SequenceDataHandle) )
-	{
-		Vulkanator::SequenceParams* SequenceParam
-			= reinterpret_cast<Vulkanator::SequenceParams*>(
-				*SequenceDataHandle);
-		// Setup data sequence stuff
-		// ...
-		new(SequenceParam) Vulkanator::SequenceParams();
+	const PF_Handle SequenceDataHandle = suites.HandleSuite1()->host_new_handle(
+		sizeof(Vulkanator::SequenceParams));
 
-		// Allocate Command Buffer
-		vk::CommandBufferAllocateInfo CommandBufferInfo = {};
-		CommandBufferInfo.commandBufferCount            = 1u;
-		CommandBufferInfo.commandPool = GlobalParam->CommandPool.get();
-		CommandBufferInfo.level       = vk::CommandBufferLevel::ePrimary;
-
-		if( auto AllocResult
-			= GlobalParam->Device->allocateCommandBuffersUnique(
-				CommandBufferInfo);
-			AllocResult.result == vk::Result::eSuccess )
-		{
-			SequenceParam->CommandBuffer = std::move(AllocResult.value.at(0));
-		}
-		else
-		{
-			// Error allocating command buffer
-			return PF_Err_OUT_OF_MEMORY;
-		}
-
-		// Allocate Fence
-
-		if( auto FenceResult = GlobalParam->Device->createFenceUnique({});
-			FenceResult.result == vk::Result::eSuccess )
-		{
-			SequenceParam->Fence = std::move(FenceResult.value);
-		}
-		else
-		{
-			// Error allocating fence
-			return PF_Err_OUT_OF_MEMORY;
-		}
-
-		// Allocate descriptor set
-
-		vk::DescriptorSetAllocateInfo DescriptorAllocInfo = {};
-		DescriptorAllocInfo.descriptorPool = GlobalParam->DescriptorPool.get();
-		DescriptorAllocInfo.descriptorSetCount = 1u;
-		DescriptorAllocInfo.pSetLayouts
-			= &GlobalParam->RenderDescriptorSetLayout.get();
-
-		if( auto DescriptorSetResult
-			= GlobalParam->Device->allocateDescriptorSetsUnique(
-				DescriptorAllocInfo);
-			DescriptorSetResult.result == vk::Result::eSuccess )
-		{
-			SequenceParam->DescriptorSet
-				= std::move(DescriptorSetResult.value.at(0));
-		}
-		else
-		{
-			// Error allocating descriptor set
-			return PF_Err_OUT_OF_MEMORY;
-		}
-
-		// Allocate the actual uniform buffer
-		std::tie(
-			SequenceParam->UniformBuffer, SequenceParam->UniformBufferMemory)
-			= VulkanUtils::AllocateBuffer(
-				  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
-				  sizeof(Vulkanator::RenderParams::Uniforms),
-				  vk::BufferUsageFlagBits::eUniformBuffer,
-				  vk::MemoryPropertyFlagBits::eHostCached
-					  | vk::MemoryPropertyFlagBits::eHostCoherent)
-				  .value();
-
-		// This is used in a bit to describe what part of the buffer we are
-		// mapping to the descriptor set
-		vk::DescriptorBufferInfo UniformBufferInfo = {};
-		UniformBufferInfo.buffer
-			= SequenceParam->UniformBuffer
-				  .get(); // The uniform buffer we just created
-		// This buffer is entirely used as a uniform buffer, so we map the whole
-		// thing
-		UniformBufferInfo.offset = 0u;
-		UniformBufferInfo.range  = VK_WHOLE_SIZE;
-
-		// Now, we write to the descriptor set so that it points to the uniform
-		// buffer memory This won't change, so we only have to do this once
-
-		// Dispatch all the writes
-		GlobalParam->Device->updateDescriptorSets(
-			{// Descriptor Writes
-			 vk::WriteDescriptorSet(
-				 SequenceParam->DescriptorSet.get(), // Target Desriptor set
-				 0,                                  // Target binding
-				 0,                                  // Target array element
-				 1, // Number of descriptor writes
-				 vk::DescriptorType::eUniformBuffer, // Descriptor type at this
-													 // binding
-				 nullptr, // ImageInfo, if it's an image-related descriptor
-				 &UniformBufferInfo, // BufferInfo, if it's a buffer-related
-									 // descriptor
-				 nullptr // BufferView, if it's a texel-buffer-related
-						 // descriptor
-				 )},
-			{
-				// Descriptor Copies
-			});
-	}
-	else
+	if( !SequenceDataHandle )
 	{
 		return PF_Err_OUT_OF_MEMORY;
 	}
+
+	out_data->sequence_data = SequenceDataHandle;
+
+	Vulkanator::SequenceParams* SequenceParam
+		= reinterpret_cast<Vulkanator::SequenceParams*>(*SequenceDataHandle);
+	// Setup data sequence stuff
+	// ...
+	new(SequenceParam) Vulkanator::SequenceParams();
+
+	// Allocate Command Buffer
+	vk::CommandBufferAllocateInfo CommandBufferInfo = {};
+	CommandBufferInfo.commandBufferCount            = 1u;
+	CommandBufferInfo.commandPool = GlobalParam->CommandPool.get();
+	CommandBufferInfo.level       = vk::CommandBufferLevel::ePrimary;
+
+	if( auto AllocResult
+		= GlobalParam->Device->allocateCommandBuffersUnique(CommandBufferInfo);
+		AllocResult.result == vk::Result::eSuccess )
+	{
+		SequenceParam->CommandBuffer = std::move(AllocResult.value.at(0));
+	}
+	else
+	{
+		// Error allocating command buffer
+		return PF_Err_OUT_OF_MEMORY;
+	}
+
+	// Allocate Fence
+
+	if( auto FenceResult = GlobalParam->Device->createFenceUnique({});
+		FenceResult.result == vk::Result::eSuccess )
+	{
+		SequenceParam->Fence = std::move(FenceResult.value);
+	}
+	else
+	{
+		// Error allocating fence
+		return PF_Err_OUT_OF_MEMORY;
+	}
+
+	// Allocate descriptor set
+
+	vk::DescriptorSetAllocateInfo DescriptorAllocInfo = {};
+	DescriptorAllocInfo.descriptorPool     = GlobalParam->DescriptorPool.get();
+	DescriptorAllocInfo.descriptorSetCount = 1u;
+	DescriptorAllocInfo.pSetLayouts
+		= &GlobalParam->RenderDescriptorSetLayout.get();
+
+	if( auto DescriptorSetResult
+		= GlobalParam->Device->allocateDescriptorSetsUnique(
+			DescriptorAllocInfo);
+		DescriptorSetResult.result == vk::Result::eSuccess )
+	{
+		SequenceParam->DescriptorSet
+			= std::move(DescriptorSetResult.value.at(0));
+	}
+	else
+	{
+		// Error allocating descriptor set
+		return PF_Err_OUT_OF_MEMORY;
+	}
+
+	// Allocate the actual uniform buffer
+	std::tie(SequenceParam->UniformBuffer, SequenceParam->UniformBufferMemory)
+		= VulkanUtils::AllocateBuffer(
+			  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
+			  sizeof(Vulkanator::RenderParams::Uniforms),
+			  vk::BufferUsageFlagBits::eUniformBuffer,
+			  vk::MemoryPropertyFlagBits::eHostCached
+				  | vk::MemoryPropertyFlagBits::eHostCoherent)
+			  .value();
+
+	// This is used in a bit to describe what part of the buffer we are
+	// mapping to the descriptor set
+	vk::DescriptorBufferInfo UniformBufferInfo = {};
+	UniformBufferInfo.buffer                   = SequenceParam->UniformBuffer
+								   .get(); // The uniform buffer we just created
+	// This buffer is entirely used as a uniform buffer, so we map the whole
+	// thing
+	UniformBufferInfo.offset = 0u;
+	UniformBufferInfo.range  = VK_WHOLE_SIZE;
+
+	// Now, we write to the descriptor set so that it points to the uniform
+	// buffer memory This won't change, so we only have to do this once
+
+	// Dispatch all the writes
+	GlobalParam->Device->updateDescriptorSets(
+		{// Descriptor Writes
+		 vk::WriteDescriptorSet(
+			 SequenceParam->DescriptorSet.get(), // Target Desriptor set
+			 0,                                  // Target binding
+			 0,                                  // Target array element
+			 1,                                  // Number of descriptor writes
+			 vk::DescriptorType::eUniformBuffer, // Descriptor type at this
+												 // binding
+			 nullptr, // ImageInfo, if it's an image-related descriptor
+			 &UniformBufferInfo, // BufferInfo, if it's a buffer-related
+								 // descriptor
+			 nullptr             // BufferView, if it's a texel-buffer-related
+								 // descriptor
+			 )},
+		{
+			// Descriptor Copies
+		});
 
 	return PF_Err_NONE;
 }
