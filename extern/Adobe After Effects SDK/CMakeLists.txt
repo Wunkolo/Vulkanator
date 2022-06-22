@@ -12,6 +12,9 @@ add_library(
 	Util/Smart_Utils.cpp
 )
 
+# Surpress warnings
+target_compile_options( AESDK PRIVATE "-w" )
+
 set( AESDK_ROOT ${PROJECT_SOURCE_DIR} CACHE INTERNAL "After Effects SDK Root")
 
 set( AESDK_INCLUDE
