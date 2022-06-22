@@ -7,6 +7,7 @@
 #include <array>
 #include <span>
 
+#include <AEFX_SuiteHelper.h>
 #include <AEGP_SuiteHandler.h>
 #include <AE_EffectCB.h>
 #include <AE_EffectCBSuites.h>
@@ -1189,9 +1190,37 @@ PF_Err SmartRender(
 	// Lock global handle
 	Vulkanator::GlobalParams* GlobalParam
 		= reinterpret_cast<Vulkanator::GlobalParams*>(*in_data->global_data);
-	Vulkanator::SequenceParams* SequenceParam
-		= reinterpret_cast<Vulkanator::SequenceParams*>(*in_data->sequence_data
+
+	std::scoped_lock Lock(GlobalParam->GlobalLock);
+
+	// Vulkanator::SequenceParams const* SequenceParam = nullptr;
+	Vulkanator::SequenceParams* SequenceParam = nullptr;
+
+	// If MFR is enabled, then `in_data->sequence_data` is null and we must use
+	// the suites to get sequence data. If MFR is disabled, or when running on a
+	// pre-MFR After Effects, then `in_data->sequence_data` has valid date
+	if( in_data->sequence_data )
+	{
+		SequenceParam = reinterpret_cast<Vulkanator::SequenceParams*>(
+			*in_data->sequence_data
 		);
+	}
+	else
+	{
+		AEFX_SuiteScoper<PF_EffectSequenceDataSuite1> seqdata_suite
+			= AEFX_SuiteScoper<PF_EffectSequenceDataSuite1>(
+				in_data, kPFEffectSequenceDataSuite,
+				kPFEffectSequenceDataSuiteVersion1, out_data
+			);
+
+		PF_ConstHandle const_seq;
+		seqdata_suite->PF_GetConstSequenceData(in_data->effect_ref, &const_seq);
+
+		SequenceParam = const_cast<Vulkanator::SequenceParams*>(
+			(const Vulkanator::SequenceParams*)*const_seq
+		);
+	}
+
 	Vulkanator::RenderParams* FrameParam
 		= reinterpret_cast<Vulkanator::RenderParams*>(
 			extra->input->pre_render_data
