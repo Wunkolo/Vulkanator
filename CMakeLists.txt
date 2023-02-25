@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.7.0 )
+cmake_minimum_required( VERSION 3.24.0 )
 project( Vulkanator )
 
 set( CMAKE_CXX_STANDARD 20 )
@@ -22,11 +22,16 @@ elseif( APPLE )
 	set( CMAKE_CXX_VISIBILITY_PRESET hidden)
 endif()
 
+# Libraries
+find_package(
+	Vulkan REQUIRED
+	COMPONENTS 
+		glslangValidator
+		SPIRV-Tools
+)
+
 add_subdirectory( extern )
 add_subdirectory( shaders )
-
-# Libraries
-find_package( Vulkan REQUIRED )
 
 set(
 	PLUGIN_FOLDER
@@ -69,7 +74,6 @@ target_include_directories(
 	${PROJECT_NAME}
 	PRIVATE
 	include
-	${Vulkan_INCLUDE_DIRS}
 )
 
 cmrc_add_resource_library(
@@ -86,7 +90,7 @@ target_link_libraries(
 	${PROJECT_NAME}
 	AESDK
 	glm
-	${Vulkan_LIBRARIES}
+	Vulkan::Vulkan
 	Resource::${PROJECT_NAME}
 )
 
