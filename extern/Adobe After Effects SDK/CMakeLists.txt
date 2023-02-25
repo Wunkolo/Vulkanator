@@ -38,12 +38,18 @@ set_target_properties(
 	ON
 )
 
-get_filename_component(
-	AFX_REZ
-	Resources/PiPLtool.exe
-	ABSOLUTE
-	CACHE
-)
+if( WIN32 )
+	get_filename_component(
+		AFX_REZ
+		Resources/PiPLtool.exe
+		ABSOLUTE
+		CACHE
+	)
+elseif( APPLE )
+	#PIPL file
+	find_program( AFX_REZ rez /Developer/Tools )
+endif()
+
 
 if(MSVC)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
