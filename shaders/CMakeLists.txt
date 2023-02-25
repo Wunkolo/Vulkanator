@@ -26,6 +26,5 @@ add_custom_target(
 	Shaders
 	DEPENDS
 		Vulkan::glslangValidator
-		Vulkan::SPIRV-Tools
 		${SPIRV_BINARY_FILES}
 )
