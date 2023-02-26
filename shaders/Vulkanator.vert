@@ -15,9 +15,7 @@ layout(binding = 0) uniform Uniforms
 void main()
 {
 	gl_Position = f32vec4(
-		(RenderParams.Transform * f32vec4(InPosition, 0.0, 1.0)).xy,
-		0.0,
-		1.0
+		(RenderParams.Transform * f32vec4(InPosition, 0.0, 1.0)).xy, 0.0, 1.0
 	);
 	OutCoord = InCoord;
 }

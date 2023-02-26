@@ -11,7 +11,8 @@ namespace VulkanUtils
 std::int32_t FindMemoryTypeIndex(
 	const vk::PhysicalDevice& PhysicalDevice, std::uint32_t MemoryTypeMask,
 	vk::MemoryPropertyFlags Properties,
-	vk::MemoryPropertyFlags ExcludeProperties)
+	vk::MemoryPropertyFlags ExcludeProperties
+)
 {
 	const vk::PhysicalDeviceMemoryProperties DeviceMemoryProperties
 		= PhysicalDevice.getMemoryProperties();
@@ -38,7 +39,8 @@ std::int32_t FindMemoryTypeIndex(
 
 std::optional<vk::UniqueDeviceMemory> AllocateDeviceMemory(
 	vk::Device Device, std::size_t Size, std::uint32_t MemoryTypeIndex,
-	vk::Buffer DedicatedBuffer, vk::Image DedicatedImage)
+	vk::Buffer DedicatedBuffer, vk::Image DedicatedImage
+)
 {
 	vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo>
 		AllocSettings;
@@ -72,7 +74,8 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	AllocateBuffer(
 		vk::Device Device, vk::PhysicalDevice PhysicalDevice, std::size_t Size,
 		vk::BufferUsageFlags Usage, vk::MemoryPropertyFlags Properties,
-		vk::MemoryPropertyFlags ExcludeProperties, vk::SharingMode Sharing)
+		vk::MemoryPropertyFlags ExcludeProperties, vk::SharingMode Sharing
+	)
 {
 	// Create the buffer object
 	vk::BufferCreateInfo NewBufferInfo = {};
@@ -99,7 +102,8 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 
 	const auto BufferMemoryIndex = FindMemoryTypeIndex(
 		PhysicalDevice, NewBufferRequirements.memoryTypeBits, Properties,
-		ExcludeProperties);
+		ExcludeProperties
+	);
 
 	if( BufferMemoryIndex < 0 )
 		return std::nullopt;
@@ -107,7 +111,8 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	vk::UniqueDeviceMemory NewBufferDeviceMemory{};
 	if( auto NewDeviceMemory = AllocateDeviceMemory(
 			Device, NewBufferRequirements.size, BufferMemoryIndex,
-			NewBuffer.get(), vk::Image());
+			NewBuffer.get(), vk::Image()
+		);
 		NewDeviceMemory.has_value() )
 	{
 		NewBufferDeviceMemory = std::move(NewDeviceMemory.value());
@@ -118,7 +123,8 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	}
 
 	if( auto BindResult = Device.bindBufferMemory(
-			NewBuffer.get(), NewBufferDeviceMemory.get(), 0);
+			NewBuffer.get(), NewBufferDeviceMemory.get(), 0
+		);
 		BindResult != vk::Result::eSuccess )
 	{
 		// Error binding buffer object to device memory
@@ -126,14 +132,16 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	}
 
 	return std::make_tuple(
-		std::move(NewBuffer), std::move(NewBufferDeviceMemory));
+		std::move(NewBuffer), std::move(NewBufferDeviceMemory)
+	);
 }
 
 std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 	AllocateImage(
 		vk::Device Device, vk::PhysicalDevice PhysicalDevice,
 		vk::ImageCreateInfo NewImageInfo, vk::MemoryPropertyFlags Properties,
-		vk::MemoryPropertyFlags ExcludeProperties)
+		vk::MemoryPropertyFlags ExcludeProperties
+	)
 {
 	vk::UniqueImage NewImage = {};
 
@@ -155,7 +163,8 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 
 	const auto ImageMemoryIndex = FindMemoryTypeIndex(
 		PhysicalDevice, NewImageRequirements.memoryTypeBits, Properties,
-		ExcludeProperties);
+		ExcludeProperties
+	);
 
 	if( ImageMemoryIndex < 0 )
 	{
@@ -166,7 +175,7 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 	if( auto NewDeviceMemory = AllocateDeviceMemory(
 			Device, NewImageRequirements.size, ImageMemoryIndex, vk::Buffer(),
 			NewImage.get() // ShouldDedicate ? NewImage.get() : vk::Image()
-			) )
+		) )
 	{
 		NewImageDeviceMemory = std::move(NewDeviceMemory.value());
 	}
@@ -183,7 +192,8 @@ std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 		return std::nullopt;
 	}
 	return std::make_tuple(
-		std::move(NewImage), std::move(NewImageDeviceMemory));
+		std::move(NewImage), std::move(NewImageDeviceMemory)
+	);
 }
 
 std::optional<vk::UniqueShaderModule>
@@ -216,7 +226,8 @@ std::optional<vk::UniqueShaderModule>
 }
 
 vk::MemoryHeap GetLargestPhysicalDeviceHeap(
-	const vk::PhysicalDevice& PhysicalDevice, vk::MemoryHeapFlags Flags)
+	const vk::PhysicalDevice& PhysicalDevice, vk::MemoryHeapFlags Flags
+)
 {
 	const vk::PhysicalDeviceMemoryProperties PhysicalDeviceMemoryProperties
 		= PhysicalDevice.getMemoryProperties();
@@ -244,7 +255,8 @@ vk::MemoryHeap GetLargestPhysicalDeviceHeap(
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT             MessageType,
-	const VkDebugUtilsMessengerCallbackDataEXT* CallbackData, void* UserData)
+	const VkDebugUtilsMessengerCallbackDataEXT* CallbackData, void* UserData
+)
 {
 	switch( vk::DebugUtilsMessageSeverityFlagBitsEXT(MessageSeverity) )
 	{

@@ -38,13 +38,15 @@ std::int32_t FindMemoryTypeIndex(
 	const vk::PhysicalDevice& PhysicalDevice, std::uint32_t MemoryTypeMask,
 	vk::MemoryPropertyFlags Properties,
 	vk::MemoryPropertyFlags ExcludeProperties
-	= vk::MemoryPropertyFlagBits::eProtected);
+	= vk::MemoryPropertyFlagBits::eProtected
+);
 
 // Allocations
 std::optional<vk::UniqueDeviceMemory> AllocateDeviceMemory(
 	vk::Device Device, std::size_t Size, std::uint32_t MemoryTypeIndex,
 	vk::Buffer DedicatedBuffer = vk::Buffer(),
-	vk::Image  DedicatedImage  = vk::Image());
+	vk::Image  DedicatedImage  = vk::Image()
+);
 
 std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	AllocateBuffer(
@@ -52,25 +54,29 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 		vk::BufferUsageFlags Usage, vk::MemoryPropertyFlags Properties,
 		vk::MemoryPropertyFlags ExcludeProperties
 		= vk::MemoryPropertyFlagBits::eProtected,
-		vk::SharingMode Sharing = vk::SharingMode::eExclusive);
+		vk::SharingMode Sharing = vk::SharingMode::eExclusive
+	);
 
 std::optional<std::tuple<vk::UniqueImage, vk::UniqueDeviceMemory>>
 	AllocateImage(
 		vk::Device Device, vk::PhysicalDevice PhysicalDevice,
 		vk::ImageCreateInfo NewImageInfo, vk::MemoryPropertyFlags Properties,
 		vk::MemoryPropertyFlags ExcludeProperties
-		= vk::MemoryPropertyFlagBits::eProtected);
+		= vk::MemoryPropertyFlagBits::eProtected
+	);
 
 std::optional<vk::UniqueShaderModule>
 	LoadShaderModule(const vk::Device& Device, std::span<const std::byte> Code);
 
 vk::MemoryHeap GetLargestPhysicalDeviceHeap(
 	const vk::PhysicalDevice& PhysicalDevice,
-	vk::MemoryHeapFlags       Flags = vk::MemoryHeapFlagBits::eDeviceLocal);
+	vk::MemoryHeapFlags       Flags = vk::MemoryHeapFlagBits::eDeviceLocal
+);
 
 // Debug callback
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT             MessageType,
-	const VkDebugUtilsMessengerCallbackDataEXT* CallbackData, void* UserData);
+	const VkDebugUtilsMessengerCallbackDataEXT* CallbackData, void* UserData
+);
 } // namespace VulkanUtils
