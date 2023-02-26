@@ -85,14 +85,19 @@ PF_Err GlobalSetup(
 	new(GlobalParam) Vulkanator::GlobalParams();
 
 	// Create Vulkan 1.1 instance
-	vk::InstanceCreateInfo InstanceInfo = {};
 
 	//////////// Vulkan Instance Creation
 	vk::ApplicationInfo ApplicationInfo = {};
 	ApplicationInfo.apiVersion          = VK_API_VERSION_1_1;
 	ApplicationInfo.applicationVersion  = VK_MAKE_VERSION(1, 0, 0);
 	ApplicationInfo.engineVersion       = VK_MAKE_VERSION(1, 0, 0);
+
+	vk::InstanceCreateInfo InstanceInfo = {};
 	InstanceInfo.pApplicationInfo       = &ApplicationInfo;
+
+#if defined(__APPLE__)
+	InstanceInfo.flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+#endif
 
 	// Validation Layers
 	static const std::vector<const char*> InstanceLayers = {
@@ -104,6 +109,9 @@ PF_Err GlobalSetup(
 	InstanceInfo.ppEnabledLayerNames = InstanceLayers.data();
 
 	static const std::vector<const char*> InstanceExtensions = {
+#if defined(__APPLE__)
+		VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+#endif
 #ifdef _DEBUG
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 #endif
