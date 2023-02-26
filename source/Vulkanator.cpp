@@ -23,13 +23,15 @@ auto DataFS = cmrc::Vulkanator::get_filesystem();
 
 PF_Err About(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
 	// Lock global handle
 	const auto GlobalParam = static_cast<Vulkanator::GlobalParams*>(
-		suites.HandleSuite1()->host_lock_handle(in_data->global_data));
+		suites.HandleSuite1()->host_lock_handle(in_data->global_data)
+	);
 
 	if( GlobalParam && GlobalParam->PhysicalDevice )
 	{
@@ -41,7 +43,8 @@ PF_Err About(
 			"Vulkanator\n(Build date: " __TIMESTAMP__
 			")\n"
 			"GPU: %.64s",
-			DeviceProperties.deviceName.data());
+			DeviceProperties.deviceName.data()
+		);
 
 		suites.HandleSuite1()->host_unlock_handle(in_data->global_data);
 	}
@@ -54,7 +57,8 @@ PF_Err About(
 
 PF_Err GlobalSetup(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
@@ -67,7 +71,8 @@ PF_Err GlobalSetup(
 
 	// Allocate global handle
 	const PF_Handle GlobalDataHandle = suites.HandleSuite1()->host_new_handle(
-		sizeof(Vulkanator::GlobalParams));
+		sizeof(Vulkanator::GlobalParams)
+	);
 
 	if( !GlobalDataHandle )
 	{
@@ -79,7 +84,8 @@ PF_Err GlobalSetup(
 	// Lock global handle
 	Vulkanator::GlobalParams* GlobalParam
 		= reinterpret_cast<Vulkanator::GlobalParams*>(
-			suites.HandleSuite1()->host_lock_handle(out_data->global_data));
+			suites.HandleSuite1()->host_lock_handle(out_data->global_data)
+		);
 	// Global setup stuff
 	// ...
 	new(GlobalParam) Vulkanator::GlobalParams();
@@ -143,7 +149,8 @@ PF_Err GlobalSetup(
 			// std::string_view has a way to compare itself to `const char*`
 			// so by casting it, we get the actual string comparisons
 			// and not pointer-comparisons
-			std::string_view(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+			std::string_view(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
+		)
 		!= InstanceExtensions.end() )
 	{
 		vk::DebugUtilsMessengerCreateInfoEXT DebugCreateInfo{};
@@ -161,7 +168,8 @@ PF_Err GlobalSetup(
 		// attach to debug callbacks
 		if( auto CallbackResult
 			= GlobalParam->Instance->createDebugUtilsMessengerEXTUnique(
-				DebugCreateInfo, nullptr, GlobalParam->Dispatcher);
+				DebugCreateInfo, nullptr, GlobalParam->Dispatcher
+			);
 			CallbackResult.result == vk::Result::eSuccess )
 		{
 			GlobalParam->DebugMessenger = std::move(CallbackResult.value);
@@ -208,15 +216,18 @@ PF_Err GlobalSetup(
 		= [&](const vk::PhysicalDevice& PhysicalDeviceA,
 			  const vk::PhysicalDevice& PhysicalDeviceB) -> bool {
 		return VulkanUtils::GetLargestPhysicalDeviceHeap(
-				   PhysicalDeviceA, vk::MemoryHeapFlagBits::eDeviceLocal)
+				   PhysicalDeviceA, vk::MemoryHeapFlagBits::eDeviceLocal
+			   )
 				   .size
 			 > VulkanUtils::GetLargestPhysicalDeviceHeap(
-				   PhysicalDeviceB, vk::MemoryHeapFlagBits::eDeviceLocal)
+				   PhysicalDeviceB, vk::MemoryHeapFlagBits::eDeviceLocal
+			 )
 				   .size;
 	};
 
 	std::stable_sort(
-		PhysicalDevices.begin(), MinCriteria, ComparePhysicalDeviceVRAM);
+		PhysicalDevices.begin(), MinCriteria, ComparePhysicalDeviceVRAM
+	);
 
 	// Found our most-ideal GPU!
 	GlobalParam->PhysicalDevice = PhysicalDevices.at(0);
@@ -261,7 +272,8 @@ PF_Err GlobalSetup(
 	// Load extended function pointers: Instance and Device-levels
 	GlobalParam->Dispatcher.init(
 		GlobalParam->Instance.get(), ::vkGetInstanceProcAddr,
-		GlobalParam->Device.get(), ::vkGetDeviceProcAddr);
+		GlobalParam->Device.get(), ::vkGetDeviceProcAddr
+	);
 
 	// Create CommandPool
 
@@ -375,14 +387,17 @@ PF_Err GlobalSetup(
 	const auto VertShaderFile = DataFS.open("shaders/Vulkanator.vert.spv");
 	const auto FragShaderFile = DataFS.open("shaders/Vulkanator.frag.spv");
 
-	const auto VertShaderCode = std::as_bytes(
-		std::span(VertShaderFile.begin(), VertShaderFile.end()));
-	const auto FragShaderCode = std::as_bytes(
-		std::span(FragShaderFile.begin(), FragShaderFile.end()));
+	const auto VertShaderCode
+		= std::as_bytes(std::span(VertShaderFile.begin(), VertShaderFile.end())
+		);
+	const auto FragShaderCode
+		= std::as_bytes(std::span(FragShaderFile.begin(), FragShaderFile.end())
+		);
 
 	vk::UniqueShaderModule VertShaderModule = {};
 	if( auto ShaderModuleResult = VulkanUtils::LoadShaderModule(
-			GlobalParam->Device.get(), VertShaderCode);
+			GlobalParam->Device.get(), VertShaderCode
+		);
 		ShaderModuleResult )
 	{
 		VertShaderModule = std::move(ShaderModuleResult.value());
@@ -395,7 +410,8 @@ PF_Err GlobalSetup(
 
 	vk::UniqueShaderModule FragShaderModule = {};
 	if( auto ShaderModuleResult = VulkanUtils::LoadShaderModule(
-			GlobalParam->Device.get(), FragShaderCode);
+			GlobalParam->Device.get(), FragShaderCode
+		);
 		ShaderModuleResult )
 	{
 		FragShaderModule = std::move(ShaderModuleResult.value());
@@ -451,7 +467,7 @@ PF_Err GlobalSetup(
 			   vk::ShaderStageFlagBits::eAllGraphics // available to the any
 													 // shader in the graphics
 													 // pipeline
-			   ),
+		   ),
 		   vk::DescriptorSetLayoutBinding(
 			   1,                                         // Binding 1...
 			   vk::DescriptorType::eCombinedImageSampler, // is a combined
@@ -459,17 +475,19 @@ PF_Err GlobalSetup(
 			   1,                                         // just one of them...
 			   vk::ShaderStageFlagBits::eFragment // available to the fragment
 												  // shader
-			   )};
+		   )};
 
 	// All of our shader bindings will now be packaged up into a single
 	// DescriptorSetLayout object
 	static vk::DescriptorSetLayoutCreateInfo DescriptorLayoutInfos(
 		{}, std::uint32_t(glm::countof(DescriptorLayoutBindings)),
-		DescriptorLayoutBindings);
+		DescriptorLayoutBindings
+	);
 
 	if( auto DescriptorSetLayoutResult
 		= GlobalParam->Device->createDescriptorSetLayoutUnique(
-			DescriptorLayoutInfos);
+			DescriptorLayoutInfos
+		);
 		DescriptorSetLayoutResult.result == vk::Result::eSuccess )
 	{
 		GlobalParam->RenderDescriptorSetLayout
@@ -496,7 +514,8 @@ PF_Err GlobalSetup(
 
 	if( auto RenderPipelineLayoutResult
 		= GlobalParam->Device->createPipelineLayoutUnique(
-			RenderPipelineLayoutInfo);
+			RenderPipelineLayoutInfo
+		);
 		RenderPipelineLayoutResult.result == vk::Result::eSuccess )
 	{
 		GlobalParam->RenderPipelineLayout
@@ -518,14 +537,14 @@ PF_Err GlobalSetup(
 			VertShaderModule.get(),           // Shader Module
 			"main", // Shader entry point function name
 			{}      // Shader specialization info
-			),
+		),
 		vk::PipelineShaderStageCreateInfo(
 			{},                                 // Flags
 			vk::ShaderStageFlagBits::eFragment, // Shader Stage
 			FragShaderModule.get(),             // Shader Module
 			"main", // Shader entry point function name
 			{}      // Shader specialization info
-			),
+		),
 	};
 
 	// We gotta describe everything about this pipeline up-front. so this is
@@ -658,7 +677,8 @@ PF_Err GlobalSetup(
 
 		if( auto RenderPipelineResult
 			= GlobalParam->Device->createGraphicsPipelineUnique(
-				{}, RenderPipelineInfo);
+				{}, RenderPipelineInfo
+			);
 			RenderPipelineResult.result == vk::Result::eSuccess )
 		{
 			GlobalParam->RenderPipelines[i]
@@ -678,17 +698,20 @@ PF_Err GlobalSetup(
 			  Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex),
 			  vk::BufferUsageFlagBits::eVertexBuffer,
 			  vk::MemoryPropertyFlagBits::eHostCached
-				  | vk::MemoryPropertyFlagBits::eHostCoherent)
+				  | vk::MemoryPropertyFlagBits::eHostCoherent
+		)
 			  .value();
 
 	// Write vertex buffer data in
 	if( auto MapResult = GlobalParam->Device->mapMemory(
-			GlobalParam->MeshBufferMemory.get(), 0, VK_WHOLE_SIZE);
+			GlobalParam->MeshBufferMemory.get(), 0, VK_WHOLE_SIZE
+		);
 		MapResult.result == vk::Result::eSuccess )
 	{
 		std::memcpy(
 			MapResult.value, Vulkanator::Quad.data(),
-			Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex));
+			Vulkanator::Quad.size() * sizeof(Vulkanator::Vertex)
+		);
 		GlobalParam->Device->unmapMemory(GlobalParam->MeshBufferMemory.get());
 	}
 	else
@@ -702,7 +725,8 @@ PF_Err GlobalSetup(
 
 PF_Err GlobalSetdown(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
@@ -725,17 +749,20 @@ PF_Err GlobalSetdown(
 
 PF_Err SequenceSetup(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
 	Vulkanator::GlobalParams* GlobalParam
 		= static_cast<Vulkanator::GlobalParams*>(
-			suites.HandleSuite1()->host_lock_handle(in_data->global_data));
+			suites.HandleSuite1()->host_lock_handle(in_data->global_data)
+		);
 
 	// Cleanup previous sequence datas
-	if( auto SequenceParam = reinterpret_cast<Vulkanator::SequenceParams*>(
-			out_data->sequence_data);
+	if( auto SequenceParam
+		= reinterpret_cast<Vulkanator::SequenceParams*>(out_data->sequence_data
+		);
 		SequenceParam )
 	{
 		// Setdown sequence stuff
@@ -747,7 +774,8 @@ PF_Err SequenceSetup(
 
 	// Allocate new sequence data
 	const PF_Handle SequenceDataHandle = suites.HandleSuite1()->host_new_handle(
-		sizeof(Vulkanator::SequenceParams));
+		sizeof(Vulkanator::SequenceParams)
+	);
 
 	if( !SequenceDataHandle )
 	{
@@ -802,8 +830,8 @@ PF_Err SequenceSetup(
 		= &GlobalParam->RenderDescriptorSetLayout.get();
 
 	if( auto DescriptorSetResult
-		= GlobalParam->Device->allocateDescriptorSetsUnique(
-			DescriptorAllocInfo);
+		= GlobalParam->Device->allocateDescriptorSetsUnique(DescriptorAllocInfo
+		);
 		DescriptorSetResult.result == vk::Result::eSuccess )
 	{
 		SequenceParam->DescriptorSet
@@ -822,14 +850,15 @@ PF_Err SequenceSetup(
 			  sizeof(Vulkanator::RenderParams::Uniforms),
 			  vk::BufferUsageFlagBits::eUniformBuffer,
 			  vk::MemoryPropertyFlagBits::eHostCached
-				  | vk::MemoryPropertyFlagBits::eHostCoherent)
+				  | vk::MemoryPropertyFlagBits::eHostCoherent
+		)
 			  .value();
 
 	// This is used in a bit to describe what part of the buffer we are
 	// mapping to the descriptor set
 	vk::DescriptorBufferInfo UniformBufferInfo = {};
-	UniformBufferInfo.buffer                   = SequenceParam->UniformBuffer
-								   .get(); // The uniform buffer we just created
+	UniformBufferInfo.buffer = SequenceParam->UniformBuffer.get(
+	); // The uniform buffer we just created
 	// This buffer is entirely used as a uniform buffer, so we map the whole
 	// thing
 	UniformBufferInfo.offset = 0u;
@@ -853,17 +882,19 @@ PF_Err SequenceSetup(
 								 // descriptor
 			 nullptr             // BufferView, if it's a texel-buffer-related
 								 // descriptor
-			 )},
+		 )},
 		{
 			// Descriptor Copies
-		});
+		}
+	);
 
 	return PF_Err_NONE;
 }
 
 PF_Err SequenceReSetup(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	if( !in_data->sequence_data )
 		return SequenceSetup(in_data, out_data, params, output);
@@ -872,7 +903,8 @@ PF_Err SequenceReSetup(
 
 PF_Err SequenceSetdown(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
@@ -880,7 +912,8 @@ PF_Err SequenceSetdown(
 	{
 		Vulkanator::SequenceParams* SequenceParam
 			= reinterpret_cast<Vulkanator::SequenceParams*>(
-				*out_data->sequence_data);
+				*out_data->sequence_data
+			);
 		// Setdown sequence stuff
 		// SequenceParam->~SequenceParams();
 		// host_dispose_handle seems to call the deconstructor already? That's
@@ -895,14 +928,16 @@ PF_Err SequenceSetdown(
 // We don't serialize anything, so we just deconstruct our sequence data
 PF_Err SequenceFlatten(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	return SequenceSetdown(in_data, out_data, params, output);
 }
 
 PF_Err ParamsSetup(
 	PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output)
+	PF_LayerDef* output
+)
 {
 	PF_Err err = PF_Err_NONE;
 
@@ -918,37 +953,43 @@ PF_Err ParamsSetup(
 	PF_ADD_FLOAT_SLIDERX(
 		"Scale X", -300, 300, -300, 300, 100, PF_Precision_HUNDREDTHS,
 		PF_ValueDisplayFlag_PERCENT, PF_ParamFlag_NONE,
-		Vulkanator::ParamID::ScaleX);
+		Vulkanator::ParamID::ScaleX
+	);
 
 	def = {};
 	PF_ADD_FLOAT_SLIDERX(
 		"Scale Y", -300, 300, -300, 300, 100, PF_Precision_HUNDREDTHS,
 		PF_ValueDisplayFlag_PERCENT, PF_ParamFlag_NONE,
-		Vulkanator::ParamID::ScaleY);
+		Vulkanator::ParamID::ScaleY
+	);
 
 	def = {};
 	PF_ADD_FLOAT_SLIDERX(
 		"R Factor", -300, 300, -300, 300, 100, PF_Precision_HUNDREDTHS,
 		PF_ValueDisplayFlag_PERCENT, PF_ParamFlag_NONE,
-		Vulkanator::ParamID::FactorR);
+		Vulkanator::ParamID::FactorR
+	);
 
 	def = {};
 	PF_ADD_FLOAT_SLIDERX(
 		"G Factor", -300, 300, -300, 300, 100, PF_Precision_HUNDREDTHS,
 		PF_ValueDisplayFlag_PERCENT, PF_ParamFlag_NONE,
-		Vulkanator::ParamID::FactorG);
+		Vulkanator::ParamID::FactorG
+	);
 
 	def = {};
 	PF_ADD_FLOAT_SLIDERX(
 		"B Factor", -300, 300, -300, 300, 100, PF_Precision_HUNDREDTHS,
 		PF_ValueDisplayFlag_PERCENT, PF_ParamFlag_NONE,
-		Vulkanator::ParamID::FactorB);
+		Vulkanator::ParamID::FactorB
+	);
 
 	def = {};
 	PF_ADD_FLOAT_SLIDERX(
 		"A Factor", -300, 300, -300, 300, 100, PF_Precision_HUNDREDTHS,
 		PF_ValueDisplayFlag_PERCENT, PF_ParamFlag_NONE,
-		Vulkanator::ParamID::FactorA);
+		Vulkanator::ParamID::FactorA
+	);
 
 	out_data->num_params = Vulkanator::ParamID::COUNT;
 	return err;
@@ -958,11 +999,13 @@ PF_Err ParamsSetup(
 /// Utils////////////////////////////////////////////////
 
 PF_Err GetParam(
-	const PF_InData* in_data, std::int32_t ParamIndex, PF_ParamDef& Param)
+	const PF_InData* in_data, std::int32_t ParamIndex, PF_ParamDef& Param
+)
 {
 	const PF_Err err = in_data->inter.checkout_param(
 		in_data->effect_ref, ParamIndex, in_data->current_time,
-		in_data->time_step, in_data->time_scale, &Param);
+		in_data->time_step, in_data->time_scale, &Param
+	);
 	if( err != PF_Err_NONE )
 	{
 		return in_data->inter.checkin_param(in_data->effect_ref, &Param);
@@ -980,7 +1023,8 @@ PF_ParamDef GetParam(const PF_InData* in_data, std::int32_t ParamIndex)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 PF_Err SmartPreRender(
-	PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* extra)
+	PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* extra
+)
 {
 	AEGP_SuiteHandler suites(in_data->pica_basicP);
 
@@ -1000,13 +1044,14 @@ PF_Err SmartPreRender(
 	// request, to get the `max_result_rect` field
 	PF_RenderRequest FullRequest = {};
 	err                          = extra->cb->checkout_layer(
-								 in_data->effect_ref,
-								 // checkout ID has to be unique, so ParamCount keeps it out the way of
-								 // our usual parameter ids
-								 Vulkanator::ParamID::Input,
-								 Vulkanator::ParamID::Input + Vulkanator::ParamID::COUNT, &FullRequest,
-								 in_data->current_time, in_data->time_step, in_data->time_scale,
-								 &InputCheckResult);
+        in_data->effect_ref,
+        // checkout ID has to be unique, so ParamCount keeps it out the way of
+        // our usual parameter ids
+        Vulkanator::ParamID::Input,
+        Vulkanator::ParamID::Input + Vulkanator::ParamID::COUNT, &FullRequest,
+        in_data->current_time, in_data->time_step, in_data->time_scale,
+        &InputCheckResult
+    );
 
 	// Then, we checkout the whole texture using the size we got previously
 	// Checkout Input layer
@@ -1018,7 +1063,8 @@ PF_Err SmartPreRender(
 	ERR(extra->cb->checkout_layer(
 		in_data->effect_ref, Vulkanator::ParamID::Input,
 		Vulkanator::ParamID::Input, &FullRequest, in_data->current_time,
-		in_data->time_step, in_data->time_scale, &InputCheckResult));
+		in_data->time_step, in_data->time_scale, &InputCheckResult
+	));
 
 	// UnionLRect(&InputCheckResult.result_rect, &Output->result_rect);
 	// UnionLRect(&InputCheckResult.max_result_rect, &Output->max_result_rect);
@@ -1060,16 +1106,20 @@ PF_Err SmartPreRender(
 		glm::mix(
 			-1.0f, 1.0f,
 			static_cast<glm::f32>(FIX_2_FLOAT(CurrentParam.u.td.x_value))
-				/ (in_data->width * DownSample.x)),
+				/ (in_data->width * DownSample.x)
+		),
 		glm::mix(
 			-1.0f, 1.0f,
 			static_cast<glm::f32>(FIX_2_FLOAT(CurrentParam.u.td.y_value))
-				/ (in_data->height * DownSample.y)));
+				/ (in_data->height * DownSample.y)
+		)
+	);
 
 	// Rotation
 	GetParam(in_data, Vulkanator::ParamID::Rotation, CurrentParam);
 	const glm::f32 Rotation = glm::radians(
-		static_cast<glm::f32>(FIX_2_FLOAT(CurrentParam.u.ad.value)));
+		static_cast<glm::f32>(FIX_2_FLOAT(CurrentParam.u.ad.value))
+	);
 
 	// ScaleX
 	GetParam(in_data, Vulkanator::ParamID::ScaleX, CurrentParam);
@@ -1087,9 +1137,11 @@ PF_Err SmartPreRender(
 	// map [-1.0,1.0] to [0.0,1.0]
 
 	FrameParam->Uniforms.Transform = glm::translate(
-		FrameParam->Uniforms.Transform, glm::f32vec3(Translate, 0.0f));
+		FrameParam->Uniforms.Transform, glm::f32vec3(Translate, 0.0f)
+	);
 	FrameParam->Uniforms.Transform = glm::rotate(
-		FrameParam->Uniforms.Transform, Rotation, glm::f32vec3(0, 0, 1));
+		FrameParam->Uniforms.Transform, Rotation, glm::f32vec3(0, 0, 1)
+	);
 	FrameParam->Uniforms.Transform
 		= glm::scale(FrameParam->Uniforms.Transform, glm::f32vec3(Scale, 1.0f));
 
@@ -1114,7 +1166,8 @@ PF_Err SmartPreRender(
 }
 
 PF_Err SmartRender(
-	PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra* extra)
+	PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra* extra
+)
 {
 	PF_Err err = PF_Err_NONE;
 
@@ -1125,7 +1178,8 @@ PF_Err SmartRender(
 
 	// Checkout input/output layers
 	ERR(extra->cb->checkout_layer_pixels(
-		in_data->effect_ref, Vulkanator::ParamID::Input, &InputLayer));
+		in_data->effect_ref, Vulkanator::ParamID::Input, &InputLayer
+	));
 	ERR(extra->cb->checkout_output(in_data->effect_ref, &OutputLayer));
 
 	if( !OutputLayer || !InputLayer )
@@ -1135,11 +1189,12 @@ PF_Err SmartRender(
 	Vulkanator::GlobalParams* GlobalParam
 		= reinterpret_cast<Vulkanator::GlobalParams*>(*in_data->global_data);
 	Vulkanator::SequenceParams* SequenceParam
-		= reinterpret_cast<Vulkanator::SequenceParams*>(
-			*in_data->sequence_data);
+		= reinterpret_cast<Vulkanator::SequenceParams*>(*in_data->sequence_data
+		);
 	Vulkanator::RenderParams* FrameParam
 		= reinterpret_cast<Vulkanator::RenderParams*>(
-			extra->input->pre_render_data);
+			extra->input->pre_render_data
+		);
 
 	/////// Get some traits about this render
 
@@ -1150,12 +1205,12 @@ PF_Err SmartRender(
 	// -vkCmdCopyImageToBuffer->>> Staging(Vulkan) -memcpy->>> OutputLayer->data
 	const std::size_t StagingBufferSize = glm::max(
 		InputLayer->height * InputLayer->rowbytes,
-		OutputLayer->height * OutputLayer->rowbytes);
+		OutputLayer->height * OutputLayer->rowbytes
+	);
 
 	// Test for cache hit
-	if( (StagingBufferSize
-		 <= SequenceParam->Cache
-				.StagingBufferSize) // Can use a subset of the memory
+	if( (StagingBufferSize <= SequenceParam->Cache.StagingBufferSize
+		) // Can use a subset of the memory
 	)
 	{
 		// Cache hit
@@ -1165,18 +1220,21 @@ PF_Err SmartRender(
 		// We tripped the cache threshold, so we resize it to be smaller
 		if( SizeDifference > std::size_t(
 				SequenceParam->Cache.StagingBufferSize
-				* Vulkanator::SequenceParams::SequenceCache::ShrinkThreshold) )
+				* Vulkanator::SequenceParams::SequenceCache::ShrinkThreshold
+			) )
 		{
 			std::tie(
 				SequenceParam->Cache.StagingBuffer,
-				SequenceParam->Cache.StagingBufferMemory)
+				SequenceParam->Cache.StagingBufferMemory
+			)
 				= VulkanUtils::AllocateBuffer(
 					  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
 					  StagingBufferSize,
 					  vk::BufferUsageFlagBits::eTransferDst
 						  | vk::BufferUsageFlagBits::eTransferSrc,
 					  vk::MemoryPropertyFlagBits::eHostCached
-						  | vk::MemoryPropertyFlagBits::eHostCoherent)
+						  | vk::MemoryPropertyFlagBits::eHostCoherent
+				)
 					  .value();
 			SequenceParam->Cache.StagingBufferSize = StagingBufferSize;
 		}
@@ -1186,14 +1244,16 @@ PF_Err SmartRender(
 		// Cache miss, recreate buffer
 		std::tie(
 			SequenceParam->Cache.StagingBuffer,
-			SequenceParam->Cache.StagingBufferMemory)
+			SequenceParam->Cache.StagingBufferMemory
+		)
 			= VulkanUtils::AllocateBuffer(
 				  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
 				  StagingBufferSize,
 				  vk::BufferUsageFlagBits::eTransferDst
 					  | vk::BufferUsageFlagBits::eTransferSrc,
 				  vk::MemoryPropertyFlagBits::eHostCached
-					  | vk::MemoryPropertyFlagBits::eHostCoherent)
+					  | vk::MemoryPropertyFlagBits::eHostCoherent
+			)
 				  .value();
 		SequenceParam->Cache.StagingBufferSize = StagingBufferSize;
 	}
@@ -1232,10 +1292,12 @@ PF_Err SmartRender(
 		// Cache Miss, recreate image
 		std::tie(
 			SequenceParam->Cache.InputImage,
-			SequenceParam->Cache.InputImageMemory)
+			SequenceParam->Cache.InputImageMemory
+		)
 			= VulkanUtils::AllocateImage(
 				  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
-				  InputImageInfo, vk::MemoryPropertyFlagBits::eDeviceLocal)
+				  InputImageInfo, vk::MemoryPropertyFlagBits::eDeviceLocal
+			)
 				  .value();
 		SequenceParam->Cache.InputImageInfoCache = InputImageInfo;
 	}
@@ -1245,15 +1307,15 @@ PF_Err SmartRender(
 		0, std::uint32_t(InputLayer->rowbytes / PixelSize), 0,
 		vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
 		vk::Offset3D(0, 0, 0),
-		vk::Extent3D(InputLayer->width, InputLayer->height, 1));
+		vk::Extent3D(InputLayer->width, InputLayer->height, 1)
+	);
 
 	// Input image view, this is used to create an interpretation of a certain
 	// aspect of the image This allows things like having a 2D image array but
 	// creating a view around just one of the images
 	vk::ImageViewCreateInfo InputImageViewInfo = {};
-	InputImageViewInfo.image
-		= SequenceParam->Cache.InputImage
-			  .get(); // The target image we are making a view of
+	// The target image we are making a view of
+	InputImageViewInfo.image    = SequenceParam->Cache.InputImage.get();
 	InputImageViewInfo.format   = RenderFormat;
 	InputImageViewInfo.viewType = vk::ImageViewType::e2D; // This is a 2D image
 	// Swizzling of color channels used during reading/sampling
@@ -1311,10 +1373,12 @@ PF_Err SmartRender(
 		// Cache Miss, recreate image
 		std::tie(
 			SequenceParam->Cache.OutputImage,
-			SequenceParam->Cache.OutputImageMemory)
+			SequenceParam->Cache.OutputImageMemory
+		)
 			= VulkanUtils::AllocateImage(
 				  GlobalParam->Device.get(), GlobalParam->PhysicalDevice,
-				  OutputImageInfo, vk::MemoryPropertyFlagBits::eDeviceLocal)
+				  OutputImageInfo, vk::MemoryPropertyFlagBits::eDeviceLocal
+			)
 				  .value();
 		SequenceParam->Cache.OutputImageInfoCache = OutputImageInfo;
 	}
@@ -1324,15 +1388,15 @@ PF_Err SmartRender(
 		0, std::uint32_t(OutputLayer->rowbytes / PixelSize), 0,
 		vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
 		vk::Offset3D(0, 0, 0),
-		vk::Extent3D(OutputLayer->width, OutputLayer->height, 1));
+		vk::Extent3D(OutputLayer->width, OutputLayer->height, 1)
+	);
 
 	// Output image view, this is used to create an interpretation of a certain
 	// aspect of the image This allows things like having a 2D image array but
 	// creating a view around just one of the images
 	vk::ImageViewCreateInfo OutputImageViewInfo = {};
-	OutputImageViewInfo.image
-		= SequenceParam->Cache.OutputImage
-			  .get(); // The target image we are making a view of
+	// The target image we are making a view of
+	OutputImageViewInfo.image    = SequenceParam->Cache.OutputImage.get();
 	OutputImageViewInfo.format   = RenderFormat;
 	OutputImageViewInfo.viewType = vk::ImageViewType::e2D; // This is a 2D image
 	// Swizzling of color channels used during reading/sampling
@@ -1404,7 +1468,8 @@ PF_Err SmartRender(
 	// uploading the texture to the GPU
 	vk::DescriptorImageInfo InputImageSamplerWrite(
 		FrameParam->InputImageSampler.get(), InputImageView.get(),
-		vk::ImageLayout::eShaderReadOnlyOptimal);
+		vk::ImageLayout::eShaderReadOnlyOptimal
+	);
 	// Write the image sampler to the descriptor set
 	GlobalParam->Device->updateDescriptorSets(
 		{vk::WriteDescriptorSet(
@@ -1416,8 +1481,9 @@ PF_Err SmartRender(
 			&InputImageSamplerWrite,                   // Image-write info
 			nullptr,                                   // Buffer write info
 			nullptr // Texel-buffer write info
-			)},
-		{});
+		)},
+		{}
+	);
 
 	// Create Render pass Framebuffer, this maps the Output buffer as a color
 	// attachment for a Renderpass to render into You can add more attachments
@@ -1457,7 +1523,8 @@ PF_Err SmartRender(
 	void* StagingBufferMapping = nullptr;
 
 	if( auto MapResult = GlobalParam->Device->mapMemory(
-			SequenceParam->Cache.StagingBufferMemory.get(), 0, VK_WHOLE_SIZE);
+			SequenceParam->Cache.StagingBufferMemory.get(), 0, VK_WHOLE_SIZE
+		);
 		MapResult.result == vk::Result::eSuccess )
 	{
 		StagingBufferMapping = MapResult.value;
@@ -1471,17 +1538,19 @@ PF_Err SmartRender(
 	// Copy into staging buffer
 	std::memcpy(
 		StagingBufferMapping, InputLayer->data,
-		InputLayer->rowbytes * InputLayer->height);
+		InputLayer->rowbytes * InputLayer->height
+	);
 
 	if( auto MapResult = GlobalParam->Device->mapMemory(
-			SequenceParam->UniformBufferMemory.get(), 0, VK_WHOLE_SIZE);
+			SequenceParam->UniformBufferMemory.get(), 0, VK_WHOLE_SIZE
+		);
 		MapResult.result == vk::Result::eSuccess )
 	{
 		std::memcpy(
-			MapResult.value, &FrameParam->Uniforms,
-			sizeof(FrameParam->Uniforms));
-		GlobalParam->Device->unmapMemory(
-			SequenceParam->UniformBufferMemory.get());
+			MapResult.value, &FrameParam->Uniforms, sizeof(FrameParam->Uniforms)
+		);
+		GlobalParam->Device->unmapMemory(SequenceParam->UniformBufferMemory.get(
+		));
 	}
 	else
 	{
@@ -1494,7 +1563,8 @@ PF_Err SmartRender(
 	//////////// Render
 
 	SequenceParam->CommandBuffer->reset(
-		vk::CommandBufferResetFlagBits::eReleaseResources);
+		vk::CommandBufferResetFlagBits::eReleaseResources
+	);
 
 	vk::CommandBufferBeginInfo BeginInfo = {};
 	BeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
@@ -1520,7 +1590,8 @@ PF_Err SmartRender(
 			 vk::BufferMemoryBarrier(
 				 vk::AccessFlags(), vk::AccessFlagBits::eTransferRead,
 				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE)},
+				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE
+			 )},
 			{
 				// Get Input Image ready to be written to
 				vk::ImageMemoryBarrier(
@@ -1530,14 +1601,18 @@ PF_Err SmartRender(
 					VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
 					SequenceParam->Cache.InputImage.get(),
 					vk::ImageSubresourceRange(
-						vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)),
-			});
+						vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+					)
+				),
+			}
+		);
 
 		// Upload input image data from staging buffer into Input Image
 		Cmd.copyBufferToImage(
 			SequenceParam->Cache.StagingBuffer.get(),
 			SequenceParam->Cache.InputImage.get(),
-			vk::ImageLayout::eTransferDstOptimal, {InputBufferMapping});
+			vk::ImageLayout::eTransferDstOptimal, {InputBufferMapping}
+		);
 
 		// Layout transitions, copy is complete, ready input image to be sampled
 		// from
@@ -1554,7 +1629,9 @@ PF_Err SmartRender(
 				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
 				 SequenceParam->Cache.InputImage.get(),
 				 vk::ImageSubresourceRange(
-					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1)),
+					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+				 )
+			 ),
 			 // Output Image is going to be written to as a color attachment
 			 // within a render pass
 			 vk::ImageMemoryBarrier(
@@ -1564,7 +1641,10 @@ PF_Err SmartRender(
 				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
 				 SequenceParam->Cache.OutputImage.get(),
 				 vk::ImageSubresourceRange(
-					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1))});
+					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+				 )
+			 )}
+		);
 
 		//////// RENDERING COMMANDS HERE
 
@@ -1599,12 +1679,14 @@ PF_Err SmartRender(
 		// Bind our shader
 		Cmd.bindPipeline(
 			vk::PipelineBindPoint::eGraphics,
-			GlobalParam->RenderPipelines[FrameParam->Uniforms.Depth].get());
+			GlobalParam->RenderPipelines[FrameParam->Uniforms.Depth].get()
+		);
 		// Bind our Descriptor set
 		Cmd.bindDescriptorSets(
 			vk::PipelineBindPoint::eGraphics,
 			GlobalParam->RenderPipelineLayout.get(), 0,
-			{SequenceParam->DescriptorSet.get()}, {});
+			{SequenceParam->DescriptorSet.get()}, {}
+		);
 		// Bind our mesh
 		Cmd.bindVertexBuffers(0, {GlobalParam->MeshBuffer.get()}, {0});
 
@@ -1613,11 +1695,15 @@ PF_Err SmartRender(
 		Cmd.setViewport(
 			0, {vk::Viewport(
 				   0, 0, glm::f32(OutputLayer->width),
-				   glm::f32(OutputLayer->height), 0.0f, 1.0f)});
+				   glm::f32(OutputLayer->height), 0.0f, 1.0f
+			   )}
+		);
 		Cmd.setScissor(
 			0, {vk::Rect2D(
 				   {0, 0}, {std::uint32_t(OutputLayer->width),
-							std::uint32_t(OutputLayer->height)})});
+							std::uint32_t(OutputLayer->height)}
+			   )}
+		);
 
 		// Draw!!
 		Cmd.draw(4, 1, 0, 0);
@@ -1636,7 +1722,8 @@ PF_Err SmartRender(
 			 vk::BufferMemoryBarrier(
 				 vk::AccessFlags(), vk::AccessFlagBits::eTransferWrite,
 				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE)},
+				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE
+			 )},
 			{
 				//// Output Image ready for a read
 				// vk::ImageMemoryBarrier(
@@ -1649,11 +1736,13 @@ PF_Err SmartRender(
 				//	vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor,
 				// 0, 1, 0, 1)
 				//)
-			});
+			}
+		);
 		Cmd.copyImageToBuffer(
 			SequenceParam->Cache.OutputImage.get(),
 			vk::ImageLayout::eTransferSrcOptimal,
-			SequenceParam->Cache.StagingBuffer.get(), {OutputBufferMapping});
+			SequenceParam->Cache.StagingBuffer.get(), {OutputBufferMapping}
+		);
 	}
 
 	if( auto EndResult = Cmd.end(); EndResult != vk::Result::eSuccess )
@@ -1677,7 +1766,8 @@ PF_Err SmartRender(
 
 	// Wait for GPU work to finish
 	if( GlobalParam->Device->waitForFences(
-			{SequenceParam->Fence.get()}, true, ~0u)
+			{SequenceParam->Fence.get()}, true, ~0u
+		)
 		!= vk::Result::eSuccess )
 	{
 		// Error waiting on fence
@@ -1689,16 +1779,19 @@ PF_Err SmartRender(
 	//////////// Download output image data into the output layer
 	std::memcpy(
 		OutputLayer->data, StagingBufferMapping,
-		std::size_t(OutputLayer->rowbytes) * OutputLayer->height);
+		std::size_t(OutputLayer->rowbytes) * OutputLayer->height
+	);
 	GlobalParam->Device->unmapMemory(
-		SequenceParam->Cache.StagingBufferMemory.get());
+		SequenceParam->Cache.StagingBufferMemory.get()
+	);
 
 	return err;
 }
 
 DllExport PF_Err EntryPoint(
 	PF_Cmd cmd, PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
-	PF_LayerDef* output, void* extra)
+	PF_LayerDef* output, void* extra
+)
 {
 	try
 	{
@@ -1722,10 +1815,12 @@ DllExport PF_Err EntryPoint(
 			return ParamsSetup(in_data, out_data, params, output);
 		case PF_Cmd_SMART_PRE_RENDER:
 			return SmartPreRender(
-				in_data, out_data, static_cast<PF_PreRenderExtra*>(extra));
+				in_data, out_data, static_cast<PF_PreRenderExtra*>(extra)
+			);
 		case PF_Cmd_SMART_RENDER:
 			return SmartRender(
-				in_data, out_data, static_cast<PF_SmartRenderExtra*>(extra));
+				in_data, out_data, static_cast<PF_SmartRenderExtra*>(extra)
+			);
 		}
 	}
 	catch( PF_Err& err )
