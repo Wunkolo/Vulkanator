@@ -41,6 +41,9 @@ if( WIN32 )
 
 	)
 elseif( APPLE )
+	# Create Universal Binary
+	set( CMAKE_OSX_ARCHITECTURES "arm64;x86_64" )
+
 	# Warnings
 	add_compile_options(
 		-Wall
