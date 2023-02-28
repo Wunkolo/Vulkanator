@@ -1,6 +1,7 @@
 # Vulkanator [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![](media/vulkanator.gif)
+![](media/vulkanator-pc.gif)
+![](media/vulkanator-mac.gif)
 
 Vulkanator is a sample project that demonstrates integrating the Adobe After Effects plugin SDK as Vulkan GPU acceleration in the form of a trivial plugin.
 The [Adobe After Effects plugin SDK](https://developer.adobe.com/after-effects/) provides a sample-project called `GLator` to demonstrate how to integrate OpenGL into a native After Effects plugin. In the same spirit, **Vulkan**ator demonstrates the same thing, but utilizing Vulkan.
