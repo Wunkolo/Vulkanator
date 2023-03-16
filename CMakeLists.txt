@@ -1,4 +1,11 @@
 cmake_minimum_required( VERSION 3.24.0 )
+
+if( APPLE )
+	# Must be set before `project(...)`
+	# Minimum target is "Big Sur" MacOS 11.0
+	set( CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum OSX Platform Version" )
+endif()
+
 project( Vulkanator )
 
 set( CMAKE_CXX_STANDARD 20 )
