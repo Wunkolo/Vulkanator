@@ -1283,7 +1283,24 @@ PF_Err SmartRender(
 	InputImageInfo.sharingMode   = vk::SharingMode::eExclusive;
 	InputImageInfo.initialLayout = vk::ImageLayout::eUndefined;
 
-	if( InputImageInfo == SequenceParam->Cache.InputImageInfoCache )
+	// Get "hash" of current input image
+	const A_Time CurTime     = {in_data->current_time, in_data->time_scale};
+	const A_Time CurTimeStep = {in_data->time_step, in_data->time_scale};
+
+	PF_State CurState = {};
+	ERR(suites.ParamUtilsSuite3()->PF_GetCurrentState(
+		in_data->effect_ref, Vulkanator::ParamID::Input, &CurTime, &CurTimeStep,
+		&CurState
+	));
+
+	// Compare hash of the currently uploaded texture against the cached one
+	A_Boolean InputImageStateIsSame = false;
+	ERR(suites.ParamUtilsSuite3()->PF_AreStatesIdentical(
+		in_data->effect_ref, &SequenceParam->Cache.InputImageState, &CurState,
+		&InputImageStateIsSame
+	));
+
+	if( InputImageStateIsSame )
 	{
 		// Cache Hit
 	}
@@ -1300,9 +1317,11 @@ PF_Err SmartRender(
 			)
 				  .value();
 		SequenceParam->Cache.InputImageInfoCache = InputImageInfo;
+		SequenceParam->Cache.InputImageState     = CurState;
 	}
 
-	// This provides a mapping between the image contents and the staging buffer
+	// This provides a mapping between the image contents and the staging
+	// buffer
 	const vk::BufferImageCopy InputBufferMapping(
 		0, std::uint32_t(InputLayer->rowbytes / PixelSize), 0,
 		vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
@@ -1310,9 +1329,9 @@ PF_Err SmartRender(
 		vk::Extent3D(InputLayer->width, InputLayer->height, 1)
 	);
 
-	// Input image view, this is used to create an interpretation of a certain
-	// aspect of the image This allows things like having a 2D image array but
-	// creating a view around just one of the images
+	// Input image view, this is used to create an interpretation of a
+	// certain aspect of the image This allows things like having a 2D image
+	// array but creating a view around just one of the images
 	vk::ImageViewCreateInfo InputImageViewInfo = {};
 	// The target image we are making a view of
 	InputImageViewInfo.image    = SequenceParam->Cache.InputImage.get();
@@ -1324,8 +1343,8 @@ PF_Err SmartRender(
 	InputImageViewInfo.components.b     = vk::ComponentSwizzle::eIdentity;
 	InputImageViewInfo.components.a     = vk::ComponentSwizzle::eIdentity;
 	InputImageViewInfo.subresourceRange = vk::ImageSubresourceRange(
-		vk::ImageAspectFlagBits::eColor, // We want the "Color" aspect of the
-										 // image
+		vk::ImageAspectFlagBits::eColor, // We want the "Color" aspect of
+										 // the image
 		0, 1,                            // A single mipmap, mipmap 0
 		0, 1                             // A single image layer, layer 0
 	);
@@ -1356,11 +1375,12 @@ PF_Err SmartRender(
 	OutputImageInfo.samples     = vk::SampleCountFlagBits::e1;
 	OutputImageInfo.tiling      = vk::ImageTiling::eOptimal;
 	OutputImageInfo.usage
-		= vk::ImageUsageFlagBits::eTransferSrc // Will be transferring from this
-											   // image into the staging buffer
-		| vk::ImageUsageFlagBits::eColorAttachment; // Will be rendering into
-													// this image within a
-													// render pass
+		= vk::ImageUsageFlagBits::eTransferSrc      // Will be transferring from
+													// this image into the
+													// staging buffer
+		| vk::ImageUsageFlagBits::eColorAttachment; // Will be rendering
+													// into this image
+													// within a render pass
 	OutputImageInfo.sharingMode   = vk::SharingMode::eExclusive;
 	OutputImageInfo.initialLayout = vk::ImageLayout::eUndefined;
 
@@ -1383,7 +1403,8 @@ PF_Err SmartRender(
 		SequenceParam->Cache.OutputImageInfoCache = OutputImageInfo;
 	}
 
-	// This provides a mapping between the image contents and the staging buffer
+	// This provides a mapping between the image contents and the staging
+	// buffer
 	const vk::BufferImageCopy OutputBufferMapping(
 		0, std::uint32_t(OutputLayer->rowbytes / PixelSize), 0,
 		vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
@@ -1391,9 +1412,9 @@ PF_Err SmartRender(
 		vk::Extent3D(OutputLayer->width, OutputLayer->height, 1)
 	);
 
-	// Output image view, this is used to create an interpretation of a certain
-	// aspect of the image This allows things like having a 2D image array but
-	// creating a view around just one of the images
+	// Output image view, this is used to create an interpretation of a
+	// certain aspect of the image This allows things like having a 2D image
+	// array but creating a view around just one of the images
 	vk::ImageViewCreateInfo OutputImageViewInfo = {};
 	// The target image we are making a view of
 	OutputImageViewInfo.image    = SequenceParam->Cache.OutputImage.get();
@@ -1405,8 +1426,8 @@ PF_Err SmartRender(
 	OutputImageViewInfo.components.b     = vk::ComponentSwizzle::eIdentity;
 	OutputImageViewInfo.components.a     = vk::ComponentSwizzle::eIdentity;
 	OutputImageViewInfo.subresourceRange = vk::ImageSubresourceRange(
-		vk::ImageAspectFlagBits::eColor, // We want the "Color" aspect of the
-										 // image
+		vk::ImageAspectFlagBits::eColor, // We want the "Color" aspect of
+										 // the image
 		0, 1,                            // A single mipmap, mipmap 0
 		0, 1                             // A single image layer, layer 0
 	);
@@ -1462,10 +1483,10 @@ PF_Err SmartRender(
 	}
 
 	// Write combined image+sampler object into the descriptor set
-	// Here, we combine both the sampler and the image, and we state the format
-	// that the image will be in by the time this sampler will be in-use, which
-	// is ideally "shader read only optimal" immediately after we are done
-	// uploading the texture to the GPU
+	// Here, we combine both the sampler and the image, and we state the
+	// format that the image will be in by the time this sampler will be
+	// in-use, which is ideally "shader read only optimal" immediately after
+	// we are done uploading the texture to the GPU
 	vk::DescriptorImageInfo InputImageSamplerWrite(
 		FrameParam->InputImageSampler.get(), InputImageView.get(),
 		vk::ImageLayout::eShaderReadOnlyOptimal
@@ -1485,14 +1506,14 @@ PF_Err SmartRender(
 		{}
 	);
 
-	// Create Render pass Framebuffer, this maps the Output buffer as a color
-	// attachment for a Renderpass to render into You can add more attachments
-	// of different formats, but they must all have the same width,height,layers
-	// Framebuffers will define the image data that render passes will be able
-	// to address in total
+	// Create Render pass Framebuffer, this maps the Output buffer as a
+	// color attachment for a Renderpass to render into You can add more
+	// attachments of different formats, but they must all have the same
+	// width,height,layers Framebuffers will define the image data that
+	// render passes will be able to address in total
 	vk::FramebufferCreateInfo OutputFramebufferInfo = {};
-	// This is for the framebuffer to know what ~~~compatible~~~ renderpasses
-	// will be rendered into it
+	// This is for the framebuffer to know what ~~~compatible~~~
+	// renderpasses will be rendered into it
 	// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#renderpass-compatibility
 	OutputFramebufferInfo.renderPass
 		= GlobalParam->RenderPasses[FrameParam->Uniforms.Depth].get();
@@ -1518,8 +1539,8 @@ PF_Err SmartRender(
 		return PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
 
-	// Copy Input image data into staging buffer, but keep it mapped, as we will
-	// read the output image data from it later too
+	// Copy Input image data into staging buffer, but keep it mapped, as we
+	// will read the output image data from it later too
 	void* StagingBufferMapping = nullptr;
 
 	if( auto MapResult = GlobalParam->Device->mapMemory(
@@ -1535,12 +1556,16 @@ PF_Err SmartRender(
 		return PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
 
-	// Copy into staging buffer
-	std::memcpy(
-		StagingBufferMapping, InputLayer->data,
-		InputLayer->rowbytes * InputLayer->height
-	);
+	if( !InputImageStateIsSame )
+	{
+		// Copy Input Image into staging buffer
+		std::memcpy(
+			StagingBufferMapping, InputLayer->data,
+			InputLayer->rowbytes * InputLayer->height
+		);
+	}
 
+	// Upload uniform data
 	if( auto MapResult = GlobalParam->Device->mapMemory(
 			SequenceParam->UniformBufferMemory.get(), 0, VK_WHOLE_SIZE
 		);
@@ -1581,58 +1606,69 @@ PF_Err SmartRender(
 	{
 		////// Upload staging buffer into Input Image
 
-		// Layout transitions, prepare to copy
-		// Transfer buffers into images
-		Cmd.pipelineBarrier(
-			vk::PipelineStageFlagBits::eHost,
-			vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags(), {},
-			{// Get staging buffer ready for a read
-			 vk::BufferMemoryBarrier(
-				 vk::AccessFlags(), vk::AccessFlagBits::eTransferRead,
-				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE
-			 )},
-			{
-				// Get Input Image ready to be written to
-				vk::ImageMemoryBarrier(
-					vk::AccessFlags(), vk::AccessFlagBits::eTransferWrite,
-					vk::ImageLayout::eUndefined,
-					vk::ImageLayout::eTransferDstOptimal,
-					VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-					SequenceParam->Cache.InputImage.get(),
-					vk::ImageSubresourceRange(
-						vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-					)
-				),
-			}
-		);
+		if( !InputImageStateIsSame )
+		{
+			// Layout transitions, prepare to copy
+			// Transfer buffers into images
+			Cmd.pipelineBarrier(
+				vk::PipelineStageFlagBits::eHost,
+				vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags(), {},
+				{// Get staging buffer ready for a read
+				 vk::BufferMemoryBarrier(
+					 vk::AccessFlags(), vk::AccessFlagBits::eTransferRead,
+					 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+					 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE
+				 )},
+				{
+					// Get Input Image ready to be written to
+					vk::ImageMemoryBarrier(
+						vk::AccessFlags(), vk::AccessFlagBits::eTransferWrite,
+						vk::ImageLayout::eUndefined,
+						vk::ImageLayout::eTransferDstOptimal,
+						VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+						SequenceParam->Cache.InputImage.get(),
+						vk::ImageSubresourceRange(
+							vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+						)
+					),
+				}
+			);
 
-		// Upload input image data from staging buffer into Input Image
-		Cmd.copyBufferToImage(
-			SequenceParam->Cache.StagingBuffer.get(),
-			SequenceParam->Cache.InputImage.get(),
-			vk::ImageLayout::eTransferDstOptimal, {InputBufferMapping}
-		);
+			// Upload input image data from staging buffer into Input Image
+			Cmd.copyBufferToImage(
+				SequenceParam->Cache.StagingBuffer.get(),
+				SequenceParam->Cache.InputImage.get(),
+				vk::ImageLayout::eTransferDstOptimal, {InputBufferMapping}
+			);
 
-		// Layout transitions, copy is complete, ready input image to be sampled
-		// from
+			// Layout transitions, copy is complete, ready input image to be
+			// sampled from
+			Cmd.pipelineBarrier(
+				vk::PipelineStageFlagBits::eTransfer,
+				vk::PipelineStageFlagBits::eComputeShader,
+				vk::DependencyFlags(), {}, {},
+				{// Input Image is going to be read
+				 vk::ImageMemoryBarrier(
+					 vk::AccessFlagBits::eTransferWrite,
+					 vk::AccessFlagBits::eShaderRead,
+					 vk::ImageLayout::eTransferDstOptimal,
+					 vk::ImageLayout::eShaderReadOnlyOptimal,
+					 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+					 SequenceParam->Cache.InputImage.get(),
+					 vk::ImageSubresourceRange(
+						 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+					 )
+				 )}
+			);
+		}
+
+		// Layout transitions, copy is complete, ready input image to be
+		// sampled from
 		Cmd.pipelineBarrier(
 			vk::PipelineStageFlagBits::eTransfer,
 			vk::PipelineStageFlagBits::eComputeShader, vk::DependencyFlags(),
 			{}, {},
-			{// Input Image is going to be read
-			 vk::ImageMemoryBarrier(
-				 vk::AccessFlagBits::eTransferWrite,
-				 vk::AccessFlagBits::eShaderRead,
-				 vk::ImageLayout::eTransferDstOptimal,
-				 vk::ImageLayout::eShaderReadOnlyOptimal,
-				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.InputImage.get(),
-				 vk::ImageSubresourceRange(
-					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-				 )
-			 ),
-			 // Output Image is going to be written to as a color attachment
+			{// Output Image is going to be written to as a color attachment
 			 // within a render pass
 			 vk::ImageMemoryBarrier(
 				 vk::AccessFlags(), vk::AccessFlagBits::eShaderWrite,
@@ -1658,10 +1694,10 @@ PF_Err SmartRender(
 		BeginInfo.framebuffer = OutputFramebuffer.get();
 
 		// Rectangular region of the output buffer to render into
-		// TODO: we could potentially have a cached layer-sized output image,
-		// and only render into a subset of this image using extent_hint if we
-		// wanted to. But we use the exact output size for more immediate memory
-		// savings
+		// TODO: we could potentially have a cached layer-sized output
+		// image, and only render into a subset of this image using
+		// extent_hint if we wanted to. But we use the exact output size for
+		// more immediate memory savings
 		BeginInfo.renderArea.offset.x = BeginInfo.renderArea.offset.y = 0;
 		BeginInfo.renderArea.extent.width  = std::uint32_t(OutputLayer->width);
 		BeginInfo.renderArea.extent.height = std::uint32_t(OutputLayer->height);
