@@ -8,6 +8,7 @@
 #include <AEConfig.h>
 
 #include <AE_Effect.h>
+#include <AE_EffectSuites.h>
 #include <entry.h>
 
 #include "VulkanConfig.hpp"
@@ -108,6 +109,7 @@ struct SequenceParams
 		vk::ImageCreateInfo InputImageInfoCache  = {};
 		vk::ImageCreateInfo OutputImageInfoCache = {};
 
+		PF_State               InputImageState  = {};
 		vk::UniqueImage        InputImage       = {};
 		vk::UniqueDeviceMemory InputImageMemory = {};
 
