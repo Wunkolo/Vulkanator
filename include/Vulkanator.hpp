@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <mutex>
 
 #define PF_DEEP_COLOR_AWARE 1
 #include <AEConfig.h>
@@ -20,6 +21,9 @@ namespace Vulkanator
 // See GlobalSetup and GlobalSetdown
 struct GlobalParams
 {
+	// Global synchronization(bad)
+	std::mutex GlobalLock;
+
 	// Vulkan
 	vk::UniqueInstance Instance       = {};
 	vk::UniqueDevice   Device         = {};
