@@ -45,7 +45,7 @@ The compiled plugin will be found in `build/bin/Vulkanator.aex`
 If you intend to make an ARM+Intel Universal Binary, be sure to install the
 [Vulkan SDK from Lunarg](https://vulkan.lunarg.com/) and **not** the
 `vulkan-loader` from [brew](https://formulae.brew.sh/formula/vulkan-loader).
-Currently(`2/25/2013`) brew will only provide _either_ an x86_64 or arm64
+Currently(`2/25/2023`) brew will only provide _either_ an x86_64 or arm64
 version of libvulkan and does not provide a universal-binary.
 
 #### Xcode
