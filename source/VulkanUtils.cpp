@@ -45,18 +45,19 @@ std::optional<vk::UniqueDeviceMemory> AllocateDeviceMemory(
 	vk::StructureChain<vk::MemoryAllocateInfo, vk::MemoryDedicatedAllocateInfo>
 		AllocSettings;
 
-	auto& AllocInfo     = AllocSettings.get<vk::MemoryAllocateInfo>();
-	auto& AllocDediInfo = AllocSettings.get<vk::MemoryDedicatedAllocateInfo>();
+	AllocSettings.get<vk::MemoryAllocateInfo>() = {
+		.allocationSize  = Size,
+		.memoryTypeIndex = MemoryTypeIndex,
+	};
 
-	AllocInfo.allocationSize  = Size;
-	AllocInfo.memoryTypeIndex = MemoryTypeIndex;
-
-	AllocDediInfo.buffer = DedicatedBuffer;
-	AllocDediInfo.image  = DedicatedImage;
+	AllocSettings.get<vk::MemoryDedicatedAllocateInfo>() = {
+		.image  = DedicatedImage,
+		.buffer = DedicatedBuffer,
+	};
 
 	vk::UniqueDeviceMemory NewDeviceMemory;
 
-	if( auto AllocResult = Device.allocateMemoryUnique(AllocInfo);
+	if( auto AllocResult = Device.allocateMemoryUnique(AllocSettings.get());
 		AllocResult.result == vk::Result::eSuccess )
 	{
 		NewDeviceMemory = std::move(AllocResult.value);
@@ -78,10 +79,11 @@ std::optional<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
 	)
 {
 	// Create the buffer object
-	vk::BufferCreateInfo NewBufferInfo = {};
-	NewBufferInfo.size                 = Size;
-	NewBufferInfo.usage                = Usage;
-	NewBufferInfo.sharingMode          = Sharing;
+	const vk::BufferCreateInfo NewBufferInfo = {
+		.size        = Size,
+		.usage       = Usage,
+		.sharingMode = Sharing,
+	};
 
 	vk::UniqueBuffer NewBuffer = {};
 
@@ -205,10 +207,10 @@ std::optional<vk::UniqueShaderModule>
 		return std::nullopt;
 	}
 
-	vk::ShaderModuleCreateInfo ShaderModuleInfo = {};
-	ShaderModuleInfo.codeSize                   = Code.size();
-	ShaderModuleInfo.pCode
-		= reinterpret_cast<const std::uint32_t*>(Code.data());
+	const vk::ShaderModuleCreateInfo ShaderModuleInfo = {
+		.codeSize = Code.size(),
+		.pCode    = reinterpret_cast<const std::uint32_t*>(Code.data()),
+	};
 
 	vk::UniqueShaderModule ShaderModule = {};
 	if( auto ShaderModuleResult

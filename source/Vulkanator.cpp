@@ -93,17 +93,11 @@ PF_Err GlobalSetup(
 	// Create Vulkan 1.1 instance
 
 	//////////// Vulkan Instance Creation
-	vk::ApplicationInfo ApplicationInfo = {};
-	ApplicationInfo.apiVersion          = VK_API_VERSION_1_1;
-	ApplicationInfo.applicationVersion  = VK_MAKE_VERSION(1, 0, 0);
-	ApplicationInfo.engineVersion       = VK_MAKE_VERSION(1, 0, 0);
-
-	vk::InstanceCreateInfo InstanceInfo = {};
-	InstanceInfo.pApplicationInfo       = &ApplicationInfo;
-
-#if defined(__APPLE__)
-	InstanceInfo.flags |= vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
-#endif
+	static const vk::ApplicationInfo ApplicationInfo = {
+		.applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+		.engineVersion      = VK_MAKE_VERSION(1, 0, 0),
+		.apiVersion         = VK_API_VERSION_1_1,
+	};
 
 	// Validation Layers
 	static const std::vector<const char*> InstanceLayers = {
@@ -111,8 +105,6 @@ PF_Err GlobalSetup(
 		"VK_LAYER_KHRONOS_validation"
 #endif
 	};
-	InstanceInfo.enabledLayerCount   = std::uint32_t(InstanceLayers.size());
-	InstanceInfo.ppEnabledLayerNames = InstanceLayers.data();
 
 	static const std::vector<const char*> InstanceExtensions = {
 #if defined(__APPLE__)
@@ -122,9 +114,17 @@ PF_Err GlobalSetup(
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 #endif
 	};
-	InstanceInfo.enabledExtensionCount
-		= std::uint32_t(InstanceExtensions.size());
-	InstanceInfo.ppEnabledExtensionNames = InstanceExtensions.data();
+
+	const vk::InstanceCreateInfo InstanceInfo = {
+#if defined(__APPLE__)
+		.flags = vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR,
+#endif
+		.pApplicationInfo        = &ApplicationInfo,
+		.enabledLayerCount       = std::uint32_t(InstanceLayers.size()),
+		.ppEnabledLayerNames     = InstanceLayers.data(),
+		.enabledExtensionCount   = std::uint32_t(InstanceExtensions.size()),
+		.ppEnabledExtensionNames = InstanceExtensions.data(),
+	};
 
 	if( auto InstanceResult = vk::createInstanceUnique(InstanceInfo);
 		InstanceResult.result == vk::Result::eSuccess )
@@ -153,17 +153,18 @@ PF_Err GlobalSetup(
 		)
 		!= InstanceExtensions.end() )
 	{
-		vk::DebugUtilsMessengerCreateInfoEXT DebugCreateInfo{};
-		DebugCreateInfo.messageSeverity
+		const vk::DebugUtilsMessengerCreateInfoEXT DebugCreateInfo{
+			.messageSeverity
 			= vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
 			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo
 			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eError
-			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning;
-		DebugCreateInfo.messageType
-			= vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
-			| vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
-			| vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral;
-		DebugCreateInfo.pfnUserCallback = VulkanUtils::DebugMessageCallback;
+			| vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning,
+			.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+						 | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation
+						 | vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral,
+			.pfnUserCallback = VulkanUtils::DebugMessageCallback,
+		};
+
 		// DebugCreateInfo.pUserData = ; // Any extra data that you want to
 		// attach to debug callbacks
 		if( auto CallbackResult
@@ -236,26 +237,27 @@ PF_Err GlobalSetup(
 	std::vector<vk::DeviceQueueCreateInfo> QueueInfos{};
 
 	{
-		vk::DeviceQueueCreateInfo CurQueueInfo = {};
-		CurQueueInfo.queueFamilyIndex = 0; // Index 0 tends to be the generic
-										   // Graphics | Compute | Copy queue
-		CurQueueInfo.queueCount = 1;
-
 		static glm::f32 QueuePriority = 0.0f;
-		CurQueueInfo.pQueuePriorities = &QueuePriority;
+
+		const vk::DeviceQueueCreateInfo CurQueueInfo = {
+			// Index 0 tends to be the generic Graphics | Compute | Copy queue
+			.queueFamilyIndex = 0,
+			.queueCount       = 1,
+			.pQueuePriorities = &QueuePriority,
+		};
+
 		QueueInfos.emplace_back(CurQueueInfo);
 	}
 
 	// Create Logical Device
-	vk::DeviceCreateInfo DeviceInfo = {};
-	DeviceInfo.queueCreateInfoCount = std::uint32_t(QueueInfos.size());
-	DeviceInfo.pQueueCreateInfos    = QueueInfos.data();
-
-	DeviceInfo.enabledExtensionCount   = 0u;
-	DeviceInfo.ppEnabledExtensionNames = nullptr;
-
-	DeviceInfo.enabledLayerCount   = 0u;
-	DeviceInfo.ppEnabledLayerNames = nullptr;
+	const vk::DeviceCreateInfo DeviceInfo = {
+		.queueCreateInfoCount    = std::uint32_t(QueueInfos.size()),
+		.pQueueCreateInfos       = QueueInfos.data(),
+		.enabledLayerCount       = 0u,
+		.ppEnabledLayerNames     = nullptr,
+		.enabledExtensionCount   = 0u,
+		.ppEnabledExtensionNames = nullptr,
+	};
 
 	if( auto DeviceResult
 		= GlobalParam->PhysicalDevice.createDeviceUnique(DeviceInfo);
@@ -276,10 +278,10 @@ PF_Err GlobalSetup(
 	);
 
 	// Create CommandPool
-
-	vk::CommandPoolCreateInfo CommandPoolInfo = {};
-	CommandPoolInfo.queueFamilyIndex          = 0;
-	CommandPoolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+	const vk::CommandPoolCreateInfo CommandPoolInfo = {
+		.flags            = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+		.queueFamilyIndex = 0,
+	};
 
 	if( auto CommandPoolResult
 		= GlobalParam->Device->createCommandPoolUnique(CommandPoolInfo);
@@ -298,77 +300,67 @@ PF_Err GlobalSetup(
 
 	for( std::size_t i = 0; i < GlobalParam->RenderPasses.size(); ++i )
 	{
-		// Create primary render pass that we'll be using for rendering
-		vk::RenderPassCreateInfo RenderPassInfo = {};
+		const vk::AttachmentDescription RenderPassAttachment = {
+			// Describe three different attachments for each bit-depth
+			.format = VulkanUtils::RenderFormats[i],
+			// We don't care what it had in it before, since we're hitting every
+			// pixel with new color values
+			.loadOp = vk::AttachmentLoadOp::eClear,
+			// Store the output pixels
+			.storeOp = vk::AttachmentStoreOp::eStore,
 
-		vk::AttachmentDescription RenderPassAttachment = {};
-		RenderPassInfo.attachmentCount                 = 1;
-		RenderPassInfo.pAttachments                    = &RenderPassAttachment;
+			// We don't do anything stencil-related
+			.stencilLoadOp  = vk::AttachmentLoadOp::eDontCare,
+			.stencilStoreOp = vk::AttachmentStoreOp::eDontCare,
 
-		// Describe three different attachments for each bit-depth
-		RenderPassAttachment.format = VulkanUtils::RenderFormats[i];
-		// We don't care what it had in it before, since we're hitting every
-		// pixel with new color values
-		RenderPassAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-		// Store the output pixels
-		RenderPassAttachment.storeOp = vk::AttachmentStoreOp::eStore;
-
-		// We don't do anything stencil-related
-		RenderPassAttachment.stencilLoadOp  = vk::AttachmentLoadOp::eDontCare;
-		RenderPassAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-
-		// We don't care what layout the image was initially
-		RenderPassAttachment.initialLayout
-			= vk::ImageLayout::eColorAttachmentOptimal;
-		// When we are done rendering, we want hte image in Transfer-Src
-		// optimal format for a transfer
-		RenderPassAttachment.finalLayout = vk::ImageLayout::eTransferSrcOptimal;
-
-		// Describe a subpass and what color attachments it uses
-		vk::SubpassDescription RenderPassSubpasses = {};
-		RenderPassInfo.subpassCount                = 1;
-		RenderPassInfo.pSubpasses                  = &RenderPassSubpasses;
-		RenderPassSubpasses.pipelineBindPoint
-			= vk::PipelineBindPoint::eGraphics;
-
-		// We only have 1 color attachment, so most of this can be null
-		RenderPassSubpasses.inputAttachmentCount    = 0u;
-		RenderPassSubpasses.pInputAttachments       = nullptr;
-		RenderPassSubpasses.pResolveAttachments     = nullptr;
-		RenderPassSubpasses.pDepthStencilAttachment = nullptr;
-		RenderPassSubpasses.preserveAttachmentCount = 0u;
-		RenderPassSubpasses.pPreserveAttachments    = nullptr;
+			// We don't care what layout the image was initially
+			.initialLayout = vk::ImageLayout::eColorAttachmentOptimal,
+			// When we are done rendering, we want hte image in Transfer-Src
+			// optimal format for a transfer
+			.finalLayout = vk::ImageLayout::eTransferSrcOptimal,
+		};
 
 		// Our single color attachment
-		vk::AttachmentReference ColorAttachmentReference = {};
-
-		ColorAttachmentReference.attachment = 0;
-		ColorAttachmentReference.layout
-			= vk::ImageLayout::eColorAttachmentOptimal;
-
-		RenderPassSubpasses.colorAttachmentCount = 1;
-		RenderPassSubpasses.pColorAttachments    = &ColorAttachmentReference;
-
-		vk::SubpassDependency RenderPassSubpassDependency = {};
-		RenderPassInfo.dependencyCount                    = 1;
-		RenderPassInfo.pDependencies = &RenderPassSubpassDependency;
+		const vk::AttachmentReference ColorAttachmentReference = {
+			.attachment = 0,
+			.layout     = vk::ImageLayout::eColorAttachmentOptimal,
+		};
 
 		// We want this subpass to wait for everything in the command buffer
 		// before it
-		RenderPassSubpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-		RenderPassSubpassDependency.dstSubpass = 0;
+		const vk::SubpassDependency RenderPassSubpassDependency = {
+			.srcSubpass    = VK_SUBPASS_EXTERNAL,
+			.dstSubpass    = 0,
+			.srcStageMask  = vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			.dstStageMask  = vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			.srcAccessMask = vk::AccessFlags(),
+			.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
+			.dependencyFlags = vk::DependencyFlagBits::eByRegion,
+		};
 
-		RenderPassSubpassDependency.srcStageMask
-			= vk::PipelineStageFlagBits::eColorAttachmentOutput;
-		RenderPassSubpassDependency.dstStageMask
-			= vk::PipelineStageFlagBits::eColorAttachmentOutput;
+		// Describe a subpass and what color attachments it uses
+		// We only have 1 color attachment, so most of this can be null
+		const vk::SubpassDescription RenderPassSubpasses = {
+			.pipelineBindPoint       = vk::PipelineBindPoint::eGraphics,
+			.inputAttachmentCount    = 0u,
+			.pInputAttachments       = nullptr,
+			.colorAttachmentCount    = 1,
+			.pColorAttachments       = &ColorAttachmentReference,
+			.pResolveAttachments     = nullptr,
+			.pDepthStencilAttachment = nullptr,
+			.preserveAttachmentCount = 0u,
+			.pPreserveAttachments    = nullptr,
+		};
 
-		RenderPassSubpassDependency.srcAccessMask = vk::AccessFlags();
-		RenderPassSubpassDependency.dstAccessMask
-			= vk::AccessFlagBits::eColorAttachmentWrite;
-
-		RenderPassSubpassDependency.dependencyFlags
-			= vk::DependencyFlagBits::eByRegion;
+		// Create primary render pass that we'll be using for rendering
+		const vk::RenderPassCreateInfo RenderPassInfo = {
+			.attachmentCount = 1,
+			.pAttachments    = &RenderPassAttachment,
+			.subpassCount    = 1,
+			.pSubpasses      = &RenderPassSubpasses,
+			.dependencyCount = 1,
+			.pDependencies   = &RenderPassSubpassDependency,
+		};
 
 		if( auto RenderPassResult
 			= GlobalParam->Device->createRenderPassUnique(RenderPassInfo);
@@ -430,18 +422,24 @@ PF_Err GlobalSetup(
 	// we are allocating a single descriptor set for each instance of the
 	// effect so 512 should be more than enough. If you add more descriptor
 	// types, then you will have to add to this poolsize
-	static vk::DescriptorPoolSize DescriptorPoolSizes[]
-		= {{vk::DescriptorType::eUniformBuffer, 512},
-		   {vk::DescriptorType::eCombinedImageSampler, 512}};
+	static vk::DescriptorPoolSize DescriptorPoolSizes[] = {
+		{
+			.type            = vk::DescriptorType::eUniformBuffer,
+			.descriptorCount = 512,
+		},
+		{
+			.type            = vk::DescriptorType::eCombinedImageSampler,
+			.descriptorCount = 512,
+		},
+	};
 
-	vk::DescriptorPoolCreateInfo DescriptorPoolInfo = {};
-	// Maximum number of total descriptor sets, upper bound
-	DescriptorPoolInfo.maxSets = 1024;
-
-	// Maximum number of each individual descriptor type
-	DescriptorPoolInfo.poolSizeCount
-		= std::uint32_t(glm::countof(DescriptorPoolSizes));
-	DescriptorPoolInfo.pPoolSizes = DescriptorPoolSizes;
+	const vk::DescriptorPoolCreateInfo DescriptorPoolInfo = {
+		// Maximum number of total descriptor sets, upper bound
+		.maxSets = 1024,
+		// Maximum number of each individual descriptor type
+		.poolSizeCount = std::uint32_t(glm::countof(DescriptorPoolSizes)),
+		.pPoolSizes    = DescriptorPoolSizes,
+	};
 
 	if( auto DescriptorPoolResult
 		= GlobalParam->Device->createDescriptorPoolUnique(DescriptorPoolInfo);
@@ -460,29 +458,33 @@ PF_Err GlobalSetup(
 	// Here we describe each of the bindings and what will be binded there
 	// This will match up to what we see in the shader
 	static vk::DescriptorSetLayoutBinding DescriptorLayoutBindings[]
-		= {vk::DescriptorSetLayoutBinding(
-			   0,                                    // Binding 0...
-			   vk::DescriptorType::eUniformBuffer,   // is a Uniform Buffer...
-			   1,                                    // just one of them...
-			   vk::ShaderStageFlagBits::eAllGraphics // available to the any
-													 // shader in the graphics
-													 // pipeline
-		   ),
-		   vk::DescriptorSetLayoutBinding(
-			   1,                                         // Binding 1...
-			   vk::DescriptorType::eCombinedImageSampler, // is a combined
-														  // image sampler...
-			   1,                                         // just one of them...
-			   vk::ShaderStageFlagBits::eFragment // available to the fragment
-												  // shader
-		   )};
+
+		= {
+			// Binding 0 is a Uniform Buffer available to the any shader in the
+			// graphics pipeline
+			vk::DescriptorSetLayoutBinding{
+				.binding         = 0,
+				.descriptorType  = vk::DescriptorType::eUniformBuffer,
+				.descriptorCount = 1,
+				.stageFlags      = vk::ShaderStageFlagBits::eAllGraphics
+			},
+			// Binding 1 is a combined image sampler available to the fragment
+			// shader
+			vk::DescriptorSetLayoutBinding{
+				.binding         = 1,
+				.descriptorType  = vk::DescriptorType::eCombinedImageSampler,
+				.descriptorCount = 1,
+				.stageFlags      = vk::ShaderStageFlagBits::eFragment
+			},
+		};
 
 	// All of our shader bindings will now be packaged up into a single
 	// DescriptorSetLayout object
-	static vk::DescriptorSetLayoutCreateInfo DescriptorLayoutInfos(
-		{}, std::uint32_t(glm::countof(DescriptorLayoutBindings)),
-		DescriptorLayoutBindings
-	);
+	static vk::DescriptorSetLayoutCreateInfo DescriptorLayoutInfos = {
+		.flags        = {},
+		.bindingCount = std::uint32_t(glm::countof(DescriptorLayoutBindings)),
+		.pBindings    = DescriptorLayoutBindings,
+	};
 
 	if( auto DescriptorSetLayoutResult
 		= GlobalParam->Device->createDescriptorSetLayoutUnique(
@@ -503,14 +505,14 @@ PF_Err GlobalSetup(
 	// Now, we describe the layout of the pipeline
 	// This is where you describe what descriptor sets and pushconstants
 	// and such that the shader will be consuming
-	vk::PipelineLayoutCreateInfo RenderPipelineLayoutInfo = {};
-	RenderPipelineLayoutInfo.setLayoutCount               = 1;
-	RenderPipelineLayoutInfo.pSetLayouts
-		= &GlobalParam->RenderDescriptorSetLayout.get();
+	const vk::PipelineLayoutCreateInfo RenderPipelineLayoutInfo = {
+		.setLayoutCount = 1,
+		.pSetLayouts    = &GlobalParam->RenderDescriptorSetLayout.get(),
 
-	// This shader takes in no push constants
-	RenderPipelineLayoutInfo.pushConstantRangeCount = 0;
-	RenderPipelineLayoutInfo.pPushConstantRanges    = nullptr;
+		// This shader takes in no push constants
+		.pushConstantRangeCount = 0,
+		.pPushConstantRanges    = nullptr,
+	};
 
 	if( auto RenderPipelineLayoutResult
 		= GlobalParam->Device->createPipelineLayoutUnique(
@@ -531,143 +533,153 @@ PF_Err GlobalSetup(
 
 	// Describe the stage and entry point of each shader
 	const vk::PipelineShaderStageCreateInfo ShaderStagesInfo[2] = {
-		vk::PipelineShaderStageCreateInfo(
-			{},                               // Flags
-			vk::ShaderStageFlagBits::eVertex, // Shader Stage
-			VertShaderModule.get(),           // Shader Module
-			"main", // Shader entry point function name
-			{}      // Shader specialization info
-		),
-		vk::PipelineShaderStageCreateInfo(
-			{},                                 // Flags
-			vk::ShaderStageFlagBits::eFragment, // Shader Stage
-			FragShaderModule.get(),             // Shader Module
-			"main", // Shader entry point function name
-			{}      // Shader specialization info
-		),
+		vk::PipelineShaderStageCreateInfo{
+			.flags               = {},
+			.stage               = vk::ShaderStageFlagBits::eVertex,
+			.module              = VertShaderModule.get(),
+			.pName               = "main",
+			.pSpecializationInfo = {},
+		},
+		vk::PipelineShaderStageCreateInfo{
+			.flags               = {},
+			.stage               = vk::ShaderStageFlagBits::eFragment,
+			.module              = FragShaderModule.get(),
+			.pName               = "main",
+			.pSpecializationInfo = {},
+		},
 	};
 
 	// We gotta describe everything about this pipeline up-front. so this is
 	// about to get pretty verbose
-	vk::PipelineVertexInputStateCreateInfo VertexInputState = {};
-	// Here, we describe how the shader will be consuming vertex data
-	VertexInputState.vertexBindingDescriptionCount = 1;
-	VertexInputState.pVertexBindingDescriptions
-		= &Vulkanator::Vertex::BindingDescription();
-	VertexInputState.vertexAttributeDescriptionCount
-		= std::uint32_t(Vulkanator::Vertex::AttributeDescription().size());
-	VertexInputState.pVertexAttributeDescriptions
-		= Vulkanator::Vertex::AttributeDescription().data();
+	const vk::PipelineVertexInputStateCreateInfo VertexInputState = {
+		// Here, we describe how the shader will be consuming vertex data
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &Vulkanator::Vertex::BindingDescription(),
+		.vertexAttributeDescriptionCount
+		= std::uint32_t(Vulkanator::Vertex::AttributeDescription().size()),
+		.pVertexAttributeDescriptions
+		= Vulkanator::Vertex::AttributeDescription().data(),
+	};
 
 	// Here, we describe how the geometry will be drawn using the output of
 	// the vertex shader(point, line, triangle) Also primitive restarting
-	vk::PipelineInputAssemblyStateCreateInfo InputAssemblyState = {};
-	InputAssemblyState.topology = vk::PrimitiveTopology::eTriangleStrip;
-	InputAssemblyState.primitiveRestartEnable = false;
+	const vk::PipelineInputAssemblyStateCreateInfo InputAssemblyState = {
+		.topology               = vk::PrimitiveTopology::eTriangleStrip,
+		.primitiveRestartEnable = VK_FALSE,
+	};
 
 	// Here, we describe the region of the framebuffer that will be rendered
 	// into This will be very dynamic in the context of after effects so we
 	// put in some default values for now and then at render-time we
 	// dynamically set the viewport and scissor regions
-	vk::PipelineViewportStateCreateInfo ViewportState = {};
 	static const vk::Viewport DefaultViewport = {0, 0, 16, 16, 0.0f, 1.0f};
 	static const vk::Rect2D   DefaultScissor  = {{0, 0}, {16, 16}};
-	ViewportState.viewportCount               = 1;
-	ViewportState.pViewports                  = &DefaultViewport;
-	ViewportState.scissorCount                = 1;
-	ViewportState.pScissors                   = &DefaultScissor;
+	const vk::PipelineViewportStateCreateInfo ViewportState = {
+		.viewportCount = 1,
+		.pViewports    = &DefaultViewport,
+		.scissorCount  = 1,
+		.pScissors     = &DefaultScissor,
+	};
 
 	// Here, we will basically describe how the rasterizer will dispatch
 	// fragment shaders from the vertex shaders
-	vk::PipelineRasterizationStateCreateInfo RasterizationState = {};
-	RasterizationState.depthClampEnable                         = false;
-	RasterizationState.rasterizerDiscardEnable                  = false;
-	RasterizationState.polygonMode             = vk::PolygonMode::eFill;
-	RasterizationState.cullMode                = vk::CullModeFlagBits::eNone;
-	RasterizationState.frontFace               = vk::FrontFace::eClockwise;
-	RasterizationState.depthBiasEnable         = false;
-	RasterizationState.depthBiasConstantFactor = 0.0f;
-	RasterizationState.depthBiasClamp          = 0.0f;
-	RasterizationState.depthBiasSlopeFactor    = 0.0;
-	RasterizationState.lineWidth               = 1.0f;
+	const vk::PipelineRasterizationStateCreateInfo RasterizationState = {
+		.depthClampEnable        = VK_FALSE,
+		.rasterizerDiscardEnable = VK_FALSE,
+		.polygonMode             = vk::PolygonMode::eFill,
+		.cullMode                = vk::CullModeFlagBits::eNone,
+		.frontFace               = vk::FrontFace::eClockwise,
+		.depthBiasEnable         = VK_FALSE,
+		.depthBiasConstantFactor = 0.0f,
+		.depthBiasClamp          = 0.0f,
+		.depthBiasSlopeFactor    = 0.0,
+		.lineWidth               = 1.0f,
+	};
 
 	// If we render into a multi-sample framebuffer, then these settings
 	// will be used for now, we are not though. so we just say that we are
 	// rendering into a single sample image
-	vk::PipelineMultisampleStateCreateInfo MultisampleState = {};
-	MultisampleState.rasterizationSamples  = vk::SampleCountFlagBits::e1;
-	MultisampleState.sampleShadingEnable   = false;
-	MultisampleState.minSampleShading      = 1.0f;
-	MultisampleState.pSampleMask           = nullptr;
-	MultisampleState.alphaToCoverageEnable = false;
-	MultisampleState.alphaToOneEnable      = false;
+	const vk::PipelineMultisampleStateCreateInfo MultisampleState = {
+		.rasterizationSamples  = vk::SampleCountFlagBits::e1,
+		.sampleShadingEnable   = VK_FALSE,
+		.minSampleShading      = 1.0f,
+		.pSampleMask           = nullptr,
+		.alphaToCoverageEnable = VK_FALSE,
+		.alphaToOneEnable      = VK_FALSE,
+	};
 
 	// Here, we describe how depth-stencil testing and comparisons will be
 	// made we aren't doing any, but we map it out here anyways in case we
 	// ever have a depth or stencil buffer to test against
-	vk::PipelineDepthStencilStateCreateInfo DepthStencilState = {};
-	DepthStencilState.depthTestEnable                         = false;
-	DepthStencilState.depthWriteEnable                        = false;
-	DepthStencilState.depthCompareOp        = vk::CompareOp::eNever;
-	DepthStencilState.depthBoundsTestEnable = false;
-	DepthStencilState.stencilTestEnable     = false;
-	DepthStencilState.front                 = vk::StencilOp::eKeep;
-	DepthStencilState.back                  = vk::StencilOp::eKeep;
-	DepthStencilState.minDepthBounds        = 0.0f;
-	DepthStencilState.maxDepthBounds        = 1.0f;
+	const vk::PipelineDepthStencilStateCreateInfo DepthStencilState = {
+		.depthTestEnable       = VK_FALSE,
+		.depthWriteEnable      = VK_FALSE,
+		.depthCompareOp        = vk::CompareOp::eNever,
+		.depthBoundsTestEnable = VK_FALSE,
+		.stencilTestEnable     = VK_FALSE,
+		.front                 = {},
+		.back                  = {},
+		.minDepthBounds        = 0.0f,
+		.maxDepthBounds        = 1.0f,
+	};
 
 	// Here, we describe how alpha-transparency will be handled
 	// per-attachment
-	//
-	vk::PipelineColorBlendStateCreateInfo ColorBlendState = {};
-	ColorBlendState.logicOpEnable                         = false;
-	ColorBlendState.logicOp                               = vk::LogicOp::eClear;
-	ColorBlendState.attachmentCount                       = 1;
 
 	// We have just 1 attachment, and we arent doing alpha blending for now
 	// so we have this structure just to say "we arent doing blending"
-	vk::PipelineColorBlendAttachmentState BlendAttachmentState = {};
-	BlendAttachmentState.blendEnable                           = false;
-	BlendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eZero;
-	BlendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eZero;
-	BlendAttachmentState.colorBlendOp        = vk::BlendOp::eAdd;
-	BlendAttachmentState.srcAlphaBlendFactor = vk::BlendFactor::eZero;
-	BlendAttachmentState.dstAlphaBlendFactor = vk::BlendFactor::eZero;
-	BlendAttachmentState.alphaBlendOp        = vk::BlendOp::eAdd;
-	BlendAttachmentState.colorWriteMask
+	const vk::PipelineColorBlendAttachmentState BlendAttachmentState = {
+		.blendEnable         = VK_FALSE,
+		.srcColorBlendFactor = vk::BlendFactor::eZero,
+		.dstColorBlendFactor = vk::BlendFactor::eZero,
+		.colorBlendOp        = vk::BlendOp::eAdd,
+		.srcAlphaBlendFactor = vk::BlendFactor::eZero,
+		.dstAlphaBlendFactor = vk::BlendFactor::eZero,
+		.alphaBlendOp        = vk::BlendOp::eAdd,
+		.colorWriteMask
 		= vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
-		| vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+		| vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+	};
 
-	ColorBlendState.pAttachments = &BlendAttachmentState;
+	const vk::PipelineColorBlendStateCreateInfo ColorBlendState = {
+		.logicOpEnable   = VK_FALSE,
+		.logicOp         = vk::LogicOp::eClear,
+		.attachmentCount = 1,
+		.pAttachments    = &BlendAttachmentState,
+	};
 
 	// Here, we can describe everything about this pipeline that can be
 	// dynamically configured at run-time and will be read from the command
 	// buffer
-	vk::PipelineDynamicStateCreateInfo DynamicState = {};
-	vk::DynamicState                   DynamicStates[]
+	static const vk::DynamicState DynamicStates[]
 		= {// The viewport and scissor of the framebuffer will be dynamic at
 		   // run-time
 		   // so we definately add these
-		   vk::DynamicState::eViewport, vk::DynamicState::eScissor};
-	DynamicState.dynamicStateCount = std::uint32_t(glm::countof(DynamicStates));
-	DynamicState.pDynamicStates    = DynamicStates;
+		   vk::DynamicState::eViewport, vk::DynamicState::eScissor
+		};
+	const vk::PipelineDynamicStateCreateInfo DynamicState = {
+		.dynamicStateCount = std::uint32_t(glm::countof(DynamicStates)),
+		.pDynamicStates    = DynamicStates,
+	};
 
 	// Create each of the graphics pipelines for each bit-depth
 	// These are all the same for each of the graphics pipelines
 	// so they can be out of the loop. Only renderpass will be different
-	vk::GraphicsPipelineCreateInfo RenderPipelineInfo = {};
-	RenderPipelineInfo.stageCount                     = 2; // Vert + Frag stages
-	RenderPipelineInfo.pStages                        = ShaderStagesInfo;
-	RenderPipelineInfo.pVertexInputState              = &VertexInputState;
-	RenderPipelineInfo.pInputAssemblyState            = &InputAssemblyState;
-	RenderPipelineInfo.pViewportState                 = &ViewportState;
-	RenderPipelineInfo.pRasterizationState            = &RasterizationState;
-	RenderPipelineInfo.pMultisampleState              = &MultisampleState;
-	RenderPipelineInfo.pDepthStencilState             = &DepthStencilState;
-	RenderPipelineInfo.pColorBlendState               = &ColorBlendState;
-	RenderPipelineInfo.pDynamicState                  = &DynamicState;
-	RenderPipelineInfo.subpass                        = 0;
-	RenderPipelineInfo.layout = GlobalParam->RenderPipelineLayout.get();
+	vk::GraphicsPipelineCreateInfo RenderPipelineInfo = {
+		.stageCount          = 2, // Vert + Frag stages
+		.pStages             = ShaderStagesInfo,
+		.pVertexInputState   = &VertexInputState,
+		.pInputAssemblyState = &InputAssemblyState,
+		.pViewportState      = &ViewportState,
+		.pRasterizationState = &RasterizationState,
+		.pMultisampleState   = &MultisampleState,
+		.pDepthStencilState  = &DepthStencilState,
+		.pColorBlendState    = &ColorBlendState,
+		.pDynamicState       = &DynamicState,
+		.layout              = GlobalParam->RenderPipelineLayout.get(),
+		.subpass             = 0,
+	};
+
 	for( std::size_t i = 0; i < GlobalParam->RenderPasses.size(); ++i )
 	{
 
@@ -791,10 +803,11 @@ PF_Err SequenceSetup(
 	new(SequenceParam) Vulkanator::SequenceParams();
 
 	// Allocate Command Buffer
-	vk::CommandBufferAllocateInfo CommandBufferInfo = {};
-	CommandBufferInfo.commandBufferCount            = 1u;
-	CommandBufferInfo.commandPool = GlobalParam->CommandPool.get();
-	CommandBufferInfo.level       = vk::CommandBufferLevel::ePrimary;
+	const vk::CommandBufferAllocateInfo CommandBufferInfo = {
+		.commandPool        = GlobalParam->CommandPool.get(),
+		.level              = vk::CommandBufferLevel::ePrimary,
+		.commandBufferCount = 1u,
+	};
 
 	if( auto AllocResult
 		= GlobalParam->Device->allocateCommandBuffersUnique(CommandBufferInfo);
@@ -823,11 +836,11 @@ PF_Err SequenceSetup(
 
 	// Allocate descriptor set
 
-	vk::DescriptorSetAllocateInfo DescriptorAllocInfo = {};
-	DescriptorAllocInfo.descriptorPool     = GlobalParam->DescriptorPool.get();
-	DescriptorAllocInfo.descriptorSetCount = 1u;
-	DescriptorAllocInfo.pSetLayouts
-		= &GlobalParam->RenderDescriptorSetLayout.get();
+	const vk::DescriptorSetAllocateInfo DescriptorAllocInfo = {
+		.descriptorPool     = GlobalParam->DescriptorPool.get(),
+		.descriptorSetCount = 1u,
+		.pSetLayouts        = &GlobalParam->RenderDescriptorSetLayout.get(),
+	};
 
 	if( auto DescriptorSetResult
 		= GlobalParam->Device->allocateDescriptorSetsUnique(DescriptorAllocInfo
@@ -856,13 +869,14 @@ PF_Err SequenceSetup(
 
 	// This is used in a bit to describe what part of the buffer we are
 	// mapping to the descriptor set
-	vk::DescriptorBufferInfo UniformBufferInfo = {};
-	UniformBufferInfo.buffer = SequenceParam->UniformBuffer.get(
-	); // The uniform buffer we just created
-	// This buffer is entirely used as a uniform buffer, so we map the whole
-	// thing
-	UniformBufferInfo.offset = 0u;
-	UniformBufferInfo.range  = VK_WHOLE_SIZE;
+	const vk::DescriptorBufferInfo UniformBufferInfo = {
+		.buffer = SequenceParam->UniformBuffer.get(),
+		// The uniform buffer we just created
+		// This buffer is entirely used as a uniform buffer, so we map the whole
+		// thing
+		.offset = 0u,
+		.range  = VK_WHOLE_SIZE,
+	};
 
 	// Now, we write to the descriptor set so that it points to the uniform
 	// buffer memory This won't change, so we only have to do this once
@@ -870,19 +884,17 @@ PF_Err SequenceSetup(
 	// Dispatch all the writes
 	GlobalParam->Device->updateDescriptorSets(
 		{// Descriptor Writes
-		 vk::WriteDescriptorSet(
-			 SequenceParam->DescriptorSet.get(), // Target Desriptor set
-			 0,                                  // Target binding
-			 0,                                  // Target array element
-			 1,                                  // Number of descriptor writes
-			 vk::DescriptorType::eUniformBuffer, // Descriptor type at this
-												 // binding
-			 nullptr, // ImageInfo, if it's an image-related descriptor
-			 &UniformBufferInfo, // BufferInfo, if it's a buffer-related
-								 // descriptor
-			 nullptr             // BufferView, if it's a texel-buffer-related
-								 // descriptor
-		 )},
+		 vk::WriteDescriptorSet{
+			 .dstSet           = SequenceParam->DescriptorSet.get(),
+			 .dstBinding       = 0,
+			 .dstArrayElement  = 0,
+			 .descriptorCount  = 1,
+			 .descriptorType   = vk::DescriptorType::eUniformBuffer,
+			 .pImageInfo       = nullptr,
+			 .pBufferInfo      = &UniformBufferInfo,
+			 .pTexelBufferView = nullptr
+		 }
+		},
 		{
 			// Descriptor Copies
 		}
@@ -1265,23 +1277,42 @@ PF_Err SmartRender(
 		= {sizeof(PF_Pixel8), sizeof(PF_Pixel16), sizeof(PF_Pixel32)};
 	const std::size_t PixelSize = PixelSizes.at(FrameParam->Uniforms.Depth);
 
+	const vk::Extent3D InputImageExtent = {
+		.width  = static_cast<std::uint32_t>(InputLayer->width),
+		.height = static_cast<std::uint32_t>(InputLayer->height),
+		.depth  = 1,
+	};
+	const vk::Extent3D OutputImageExtent = {
+		.width  = static_cast<std::uint32_t>(OutputLayer->width),
+		.height = static_cast<std::uint32_t>(OutputLayer->height),
+		.depth  = 1,
+	};
+	const vk::Rect2D OutputRect2D = {
+		{0, 0},
+		{
+			std::uint32_t(OutputLayer->width),
+			std::uint32_t(OutputLayer->height),
+		},
+	};
+
 	// Create GPU-side Input Image
-	vk::ImageCreateInfo InputImageInfo;
-	InputImageInfo.imageType = vk::ImageType::e2D;
-	InputImageInfo.format    = RenderFormat;
-	InputImageInfo.extent
-		= vk::Extent3D(InputLayer->width, InputLayer->height, 1);
-	InputImageInfo.mipLevels   = 1;
-	InputImageInfo.arrayLayers = 1;
-	InputImageInfo.samples     = vk::SampleCountFlagBits::e1;
-	InputImageInfo.tiling      = vk::ImageTiling::eOptimal;
-	InputImageInfo.usage
-		= vk::ImageUsageFlagBits::eTransferSrc
-		| vk::ImageUsageFlagBits::eTransferDst // Will be trasnferring from the
-											   // staging buffer into this one
-		| vk::ImageUsageFlagBits::eSampled; // Will be sampling from this image
-	InputImageInfo.sharingMode   = vk::SharingMode::eExclusive;
-	InputImageInfo.initialLayout = vk::ImageLayout::eUndefined;
+
+	const vk::ImageCreateInfo InputImageInfo = {
+		.imageType   = vk::ImageType::e2D,
+		.format      = RenderFormat,
+		.extent      = InputImageExtent,
+		.mipLevels   = 1,
+		.arrayLayers = 1,
+		.samples     = vk::SampleCountFlagBits::e1,
+		.tiling      = vk::ImageTiling::eOptimal,
+		// Will be transferring from the staging buffer into this one
+		.usage = vk::ImageUsageFlagBits::eTransferSrc
+			   | vk::ImageUsageFlagBits::eTransferDst
+			   // Will be sampling from this image
+			   | vk::ImageUsageFlagBits::eSampled,
+		.sharingMode   = vk::SharingMode::eExclusive,
+		.initialLayout = vk::ImageLayout::eUndefined,
+	};
 
 	if( InputImageInfo == SequenceParam->Cache.InputImageInfoCache )
 	{
@@ -1303,32 +1334,46 @@ PF_Err SmartRender(
 	}
 
 	// This provides a mapping between the image contents and the staging buffer
-	const vk::BufferImageCopy InputBufferMapping(
-		0, std::uint32_t(InputLayer->rowbytes / PixelSize), 0,
-		vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-		vk::Offset3D(0, 0, 0),
-		vk::Extent3D(InputLayer->width, InputLayer->height, 1)
-	);
+
+	// Typically we are only ever addressing the first layer/mip of an image
+	// These structures can be re-used to help address this common image
+	// subresource
+	static const vk::ImageSubresourceLayers ImageDefaultSubresourceLayer = {
+		.aspectMask     = vk::ImageAspectFlagBits::eColor,
+		.mipLevel       = 0,
+		.baseArrayLayer = 0,
+		.layerCount     = 1,
+	};
+
+	static const vk::ImageSubresourceRange ImageDefaultSubresourceRange = {
+		.aspectMask     = vk::ImageAspectFlagBits::eColor,
+		.baseMipLevel   = 0,
+		.levelCount     = 1,
+		.baseArrayLayer = 0,
+		.layerCount     = 1,
+	};
+
+	const vk::BufferImageCopy InputBufferMapping{
+		.bufferOffset      = 0,
+		.bufferRowLength   = std::uint32_t(InputLayer->rowbytes / PixelSize),
+		.bufferImageHeight = 0,
+		.imageSubresource  = ImageDefaultSubresourceLayer,
+		.imageOffset       = {},
+		.imageExtent       = InputImageExtent,
+	};
 
 	// Input image view, this is used to create an interpretation of a certain
 	// aspect of the image This allows things like having a 2D image array but
 	// creating a view around just one of the images
-	vk::ImageViewCreateInfo InputImageViewInfo = {};
-	// The target image we are making a view of
-	InputImageViewInfo.image    = SequenceParam->Cache.InputImage.get();
-	InputImageViewInfo.format   = RenderFormat;
-	InputImageViewInfo.viewType = vk::ImageViewType::e2D; // This is a 2D image
-	// Swizzling of color channels used during reading/sampling
-	InputImageViewInfo.components.r     = vk::ComponentSwizzle::eIdentity;
-	InputImageViewInfo.components.g     = vk::ComponentSwizzle::eIdentity;
-	InputImageViewInfo.components.b     = vk::ComponentSwizzle::eIdentity;
-	InputImageViewInfo.components.a     = vk::ComponentSwizzle::eIdentity;
-	InputImageViewInfo.subresourceRange = vk::ImageSubresourceRange(
-		vk::ImageAspectFlagBits::eColor, // We want the "Color" aspect of the
-										 // image
-		0, 1,                            // A single mipmap, mipmap 0
-		0, 1                             // A single image layer, layer 0
-	);
+	const vk::ImageViewCreateInfo InputImageViewInfo = {
+		// The target image we are making a view of
+		.image    = SequenceParam->Cache.InputImage.get(),
+		.viewType = vk::ImageViewType::e2D,
+		.format   = RenderFormat,
+		// Swizzling of color channels used during reading/sampling
+		.components       = {},
+		.subresourceRange = ImageDefaultSubresourceRange,
+	};
 
 	SequenceParam->Cache.InputImageInfoCache = InputImageInfo;
 
@@ -1346,23 +1391,22 @@ PF_Err SmartRender(
 	}
 
 	// Create GPU-side Output Image
-	vk::ImageCreateInfo OutputImageInfo;
-	OutputImageInfo.imageType = vk::ImageType::e2D;
-	OutputImageInfo.format    = RenderFormat;
-	OutputImageInfo.extent
-		= vk::Extent3D(OutputLayer->width, OutputLayer->height, 1);
-	OutputImageInfo.mipLevels   = 1;
-	OutputImageInfo.arrayLayers = 1;
-	OutputImageInfo.samples     = vk::SampleCountFlagBits::e1;
-	OutputImageInfo.tiling      = vk::ImageTiling::eOptimal;
-	OutputImageInfo.usage
-		= vk::ImageUsageFlagBits::eTransferSrc // Will be transferring from this
-											   // image into the staging buffer
-		| vk::ImageUsageFlagBits::eColorAttachment; // Will be rendering into
-													// this image within a
-													// render pass
-	OutputImageInfo.sharingMode   = vk::SharingMode::eExclusive;
-	OutputImageInfo.initialLayout = vk::ImageLayout::eUndefined;
+	const vk::ImageCreateInfo OutputImageInfo = {
+		.imageType   = vk::ImageType::e2D,
+		.format      = RenderFormat,
+		.extent      = OutputImageExtent,
+		.mipLevels   = 1,
+		.arrayLayers = 1,
+		.samples     = vk::SampleCountFlagBits::e1,
+		.tiling      = vk::ImageTiling::eOptimal,
+		.usage
+		// Will be transferring from this image into the staging buffer
+		= vk::ImageUsageFlagBits::eTransferSrc
+		// Will be rendering into this image within a render pass
+		| vk::ImageUsageFlagBits::eColorAttachment,
+		.sharingMode   = vk::SharingMode::eExclusive,
+		.initialLayout = vk::ImageLayout::eUndefined,
+	};
 
 	if( OutputImageInfo == SequenceParam->Cache.OutputImageInfoCache )
 	{
@@ -1384,32 +1428,27 @@ PF_Err SmartRender(
 	}
 
 	// This provides a mapping between the image contents and the staging buffer
-	const vk::BufferImageCopy OutputBufferMapping(
-		0, std::uint32_t(OutputLayer->rowbytes / PixelSize), 0,
-		vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-		vk::Offset3D(0, 0, 0),
-		vk::Extent3D(OutputLayer->width, OutputLayer->height, 1)
-	);
+	const vk::BufferImageCopy OutputBufferMapping = {
+		.bufferOffset      = 0,
+		.bufferRowLength   = std::uint32_t(OutputLayer->rowbytes / PixelSize),
+		.bufferImageHeight = 0,
+		.imageSubresource  = ImageDefaultSubresourceLayer,
+		.imageOffset       = {},
+		.imageExtent       = OutputImageExtent,
+	};
 
 	// Output image view, this is used to create an interpretation of a certain
 	// aspect of the image This allows things like having a 2D image array but
 	// creating a view around just one of the images
-	vk::ImageViewCreateInfo OutputImageViewInfo = {};
-	// The target image we are making a view of
-	OutputImageViewInfo.image    = SequenceParam->Cache.OutputImage.get();
-	OutputImageViewInfo.format   = RenderFormat;
-	OutputImageViewInfo.viewType = vk::ImageViewType::e2D; // This is a 2D image
-	// Swizzling of color channels used during reading/sampling
-	OutputImageViewInfo.components.r     = vk::ComponentSwizzle::eIdentity;
-	OutputImageViewInfo.components.g     = vk::ComponentSwizzle::eIdentity;
-	OutputImageViewInfo.components.b     = vk::ComponentSwizzle::eIdentity;
-	OutputImageViewInfo.components.a     = vk::ComponentSwizzle::eIdentity;
-	OutputImageViewInfo.subresourceRange = vk::ImageSubresourceRange(
-		vk::ImageAspectFlagBits::eColor, // We want the "Color" aspect of the
-										 // image
-		0, 1,                            // A single mipmap, mipmap 0
-		0, 1                             // A single image layer, layer 0
-	);
+	const vk::ImageViewCreateInfo OutputImageViewInfo = {
+		// The target image we are making a view of
+		.image    = SequenceParam->Cache.OutputImage.get(),
+		.viewType = vk::ImageViewType::e2D,
+		.format   = RenderFormat,
+		// Swizzling of color channels used during reading/sampling
+		.components       = {},
+		.subresourceRange = ImageDefaultSubresourceRange,
+	};
 
 	vk::UniqueImageView OutputImageView = {};
 	if( auto ImageViewResult
@@ -1426,28 +1465,33 @@ PF_Err SmartRender(
 	///////
 
 	// Create input image sampler
-	vk::SamplerCreateInfo InputImageSamplerInfo = {};
-	InputImageSamplerInfo.addressModeU = InputImageSamplerInfo.addressModeV
-		= InputImageSamplerInfo.addressModeW
-		= vk::SamplerAddressMode::eClampToEdge;
+
 	// Port After Effect's quality setting over into the sampler setting
+	vk::Filter LayerFilter = {};
 	switch( in_data->quality )
 	{
-		// Low quality -> Nearest interpolation
+	// Low quality -> Nearest interpolation
 	case PF_Quality_LO:
 	{
-		InputImageSamplerInfo.magFilter = InputImageSamplerInfo.minFilter
-			= vk::Filter::eNearest;
+		LayerFilter = vk::Filter::eNearest;
 		break;
 	}
 	// High quality -> Linear interpolation
+	default:
 	case PF_Quality_HI:
 	{
-		InputImageSamplerInfo.magFilter = InputImageSamplerInfo.minFilter
-			= vk::Filter::eLinear;
+		LayerFilter = vk::Filter::eLinear;
 		break;
 	}
 	}
+
+	const vk::SamplerCreateInfo InputImageSamplerInfo = {
+		.magFilter    = LayerFilter,
+		.minFilter    = LayerFilter,
+		.addressModeU = vk::SamplerAddressMode::eClampToEdge,
+		.addressModeV = vk::SamplerAddressMode::eClampToEdge,
+		.addressModeW = vk::SamplerAddressMode::eClampToEdge,
+	};
 
 	if( auto SamplerResult
 		= GlobalParam->Device->createSamplerUnique(InputImageSamplerInfo);
@@ -1466,22 +1510,22 @@ PF_Err SmartRender(
 	// that the image will be in by the time this sampler will be in-use, which
 	// is ideally "shader read only optimal" immediately after we are done
 	// uploading the texture to the GPU
-	vk::DescriptorImageInfo InputImageSamplerWrite(
-		FrameParam->InputImageSampler.get(), InputImageView.get(),
-		vk::ImageLayout::eShaderReadOnlyOptimal
-	);
+	const vk::DescriptorImageInfo InputImageSamplerWrite{
+		.sampler     = FrameParam->InputImageSampler.get(),
+		.imageView   = InputImageView.get(),
+		.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+	};
+
 	// Write the image sampler to the descriptor set
 	GlobalParam->Device->updateDescriptorSets(
-		{vk::WriteDescriptorSet(
-			SequenceParam->DescriptorSet.get(),
-			1,                                         // Target Binding,
-			0,                                         // Element 0
-			1,                                         // Just 1 element
-			vk::DescriptorType::eCombinedImageSampler, // Type,
-			&InputImageSamplerWrite,                   // Image-write info
-			nullptr,                                   // Buffer write info
-			nullptr // Texel-buffer write info
-		)},
+		{vk::WriteDescriptorSet{
+			.dstSet          = SequenceParam->DescriptorSet.get(),
+			.dstBinding      = 1,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType  = vk::DescriptorType::eCombinedImageSampler,
+			.pImageInfo      = &InputImageSamplerWrite,
+		}},
 		{}
 	);
 
@@ -1490,20 +1534,23 @@ PF_Err SmartRender(
 	// of different formats, but they must all have the same width,height,layers
 	// Framebuffers will define the image data that render passes will be able
 	// to address in total
-	vk::FramebufferCreateInfo OutputFramebufferInfo = {};
-	// This is for the framebuffer to know what ~~~compatible~~~ renderpasses
-	// will be rendered into it
-	// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#renderpass-compatibility
-	OutputFramebufferInfo.renderPass
-		= GlobalParam->RenderPasses[FrameParam->Uniforms.Depth].get();
-	OutputFramebufferInfo.attachmentCount = 1;
-	OutputFramebufferInfo.pAttachments    = &OutputImageView.get();
+	const vk::FramebufferCreateInfo OutputFramebufferInfo = {
 
-	// Specify the width, height, and layers that the framebuffer image
-	// attachments are;
-	OutputFramebufferInfo.width  = OutputLayer->width;
-	OutputFramebufferInfo.height = OutputLayer->height;
-	OutputFramebufferInfo.layers = 1;
+		// This is for the framebuffer to know what ~~~compatible~~~
+		// renderpasses
+		// will be rendered into it
+		// https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#renderpass-compatibility
+		.renderPass
+		= GlobalParam->RenderPasses[FrameParam->Uniforms.Depth].get(),
+		.attachmentCount = 1,
+		.pAttachments    = &OutputImageView.get(),
+
+		// Specify the width, height, and layers that the framebuffer image
+		// attachments are;
+		.width  = static_cast<std::uint32_t>(OutputLayer->width),
+		.height = static_cast<std::uint32_t>(OutputLayer->height),
+		.layers = 1,
+	};
 
 	vk::UniqueFramebuffer OutputFramebuffer = {};
 	if( auto FramebufferResult
@@ -1566,8 +1613,9 @@ PF_Err SmartRender(
 		vk::CommandBufferResetFlagBits::eReleaseResources
 	);
 
-	vk::CommandBufferBeginInfo BeginInfo = {};
-	BeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+	const vk::CommandBufferBeginInfo BeginInfo = {
+		.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit,
+	};
 
 	// Render Commands
 	vk::CommandBuffer& Cmd = SequenceParam->CommandBuffer.get();
@@ -1586,24 +1634,30 @@ PF_Err SmartRender(
 		Cmd.pipelineBarrier(
 			vk::PipelineStageFlagBits::eHost,
 			vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags(), {},
-			{// Get staging buffer ready for a read
-			 vk::BufferMemoryBarrier(
-				 vk::AccessFlags(), vk::AccessFlagBits::eTransferRead,
-				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE
-			 )},
+			{
+				// Get staging buffer ready for a read
+				vk::BufferMemoryBarrier{
+					.srcAccessMask       = vk::AccessFlags(),
+					.dstAccessMask       = vk::AccessFlagBits::eTransferRead,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.buffer = SequenceParam->Cache.StagingBuffer.get(),
+					.offset = 0u,
+					.size   = VK_WHOLE_SIZE
+				},
+			},
 			{
 				// Get Input Image ready to be written to
-				vk::ImageMemoryBarrier(
-					vk::AccessFlags(), vk::AccessFlagBits::eTransferWrite,
-					vk::ImageLayout::eUndefined,
-					vk::ImageLayout::eTransferDstOptimal,
-					VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-					SequenceParam->Cache.InputImage.get(),
-					vk::ImageSubresourceRange(
-						vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-					)
-				),
+				vk::ImageMemoryBarrier{
+					.srcAccessMask       = vk::AccessFlags(),
+					.dstAccessMask       = vk::AccessFlagBits::eTransferWrite,
+					.oldLayout           = vk::ImageLayout::eUndefined,
+					.newLayout           = vk::ImageLayout::eTransferDstOptimal,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.image            = SequenceParam->Cache.InputImage.get(),
+					.subresourceRange = ImageDefaultSubresourceRange
+				},
 			}
 		);
 
@@ -1621,56 +1675,58 @@ PF_Err SmartRender(
 			vk::PipelineStageFlagBits::eComputeShader, vk::DependencyFlags(),
 			{}, {},
 			{// Input Image is going to be read
-			 vk::ImageMemoryBarrier(
-				 vk::AccessFlagBits::eTransferWrite,
-				 vk::AccessFlagBits::eShaderRead,
-				 vk::ImageLayout::eTransferDstOptimal,
-				 vk::ImageLayout::eShaderReadOnlyOptimal,
-				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.InputImage.get(),
-				 vk::ImageSubresourceRange(
-					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-				 )
-			 ),
+			 vk::ImageMemoryBarrier{
+				 .srcAccessMask       = vk::AccessFlagBits::eTransferWrite,
+				 .dstAccessMask       = vk::AccessFlagBits::eShaderRead,
+				 .oldLayout           = vk::ImageLayout::eTransferDstOptimal,
+				 .newLayout           = vk::ImageLayout::eShaderReadOnlyOptimal,
+				 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				 .image               = SequenceParam->Cache.InputImage.get(),
+				 .subresourceRange    = ImageDefaultSubresourceRange,
+			 },
 			 // Output Image is going to be written to as a color attachment
 			 // within a render pass
-			 vk::ImageMemoryBarrier(
-				 vk::AccessFlags(), vk::AccessFlagBits::eShaderWrite,
-				 vk::ImageLayout::eUndefined,
-				 vk::ImageLayout::eColorAttachmentOptimal,
-				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.OutputImage.get(),
-				 vk::ImageSubresourceRange(
-					 vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-				 )
-			 )}
+			 vk::ImageMemoryBarrier{
+				 .srcAccessMask = vk::AccessFlags(),
+				 .dstAccessMask = vk::AccessFlagBits::eShaderWrite,
+				 .oldLayout     = vk::ImageLayout::eUndefined,
+				 .newLayout     = vk::ImageLayout::eColorAttachmentOptimal,
+				 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				 .image               = SequenceParam->Cache.OutputImage.get(),
+				 .subresourceRange    = ImageDefaultSubresourceRange,
+			 }
+			}
 		);
 
 		//////// RENDERING COMMANDS HERE
 
 		// Begin Render Pass
-		vk::RenderPassBeginInfo BeginInfo = {};
-		// Assign our render pass, based on depth
-		BeginInfo.renderPass
-			= GlobalParam->RenderPasses[FrameParam->Uniforms.Depth].get();
-
-		// Assign our output framebuffer, which has 1 color attachment
-		BeginInfo.framebuffer = OutputFramebuffer.get();
-
-		// Rectangular region of the output buffer to render into
-		// TODO: we could potentially have a cached layer-sized output image,
-		// and only render into a subset of this image using extent_hint if we
-		// wanted to. But we use the exact output size for more immediate memory
-		// savings
-		BeginInfo.renderArea.offset.x = BeginInfo.renderArea.offset.y = 0;
-		BeginInfo.renderArea.extent.width  = std::uint32_t(OutputLayer->width);
-		BeginInfo.renderArea.extent.height = std::uint32_t(OutputLayer->height);
 
 		// This is the color that we clear the framebuffer with
 		// Default clear value is just "0" through out
-		static vk::ClearValue ClearValue = {};
-		BeginInfo.clearValueCount        = 1;
-		BeginInfo.pClearValues           = &ClearValue;
+		static const vk::ClearValue ClearValue = {};
+
+		const vk::RenderPassBeginInfo BeginInfo = {
+			// Assign our render pass, based on depth
+			.renderPass
+			= GlobalParam->RenderPasses[FrameParam->Uniforms.Depth].get(),
+			// Assign our output framebuffer, which has 1 color attachment
+			.framebuffer = OutputFramebuffer.get(),
+
+			// Rectangular region of the output buffer to render into
+			// TODO: we could potentially have a cached layer-sized output
+			// image,
+			// and only render into a subset of this image using extent_hint if
+			// we
+			// wanted to. But we use the exact output size for more immediate
+			// memory
+			// savings
+			.renderArea      = OutputRect2D,
+			.clearValueCount = 1,
+			.pClearValues    = &ClearValue,
+		};
 
 		////////////// Render pass begin
 		Cmd.beginRenderPass(BeginInfo, vk::SubpassContents::eInline);
@@ -1692,18 +1748,16 @@ PF_Err SmartRender(
 
 		// Set viewport and scissor region for this render, we draw to the
 		// entire output buffer
-		Cmd.setViewport(
-			0, {vk::Viewport(
-				   0, 0, glm::f32(OutputLayer->width),
-				   glm::f32(OutputLayer->height), 0.0f, 1.0f
-			   )}
-		);
-		Cmd.setScissor(
-			0, {vk::Rect2D(
-				   {0, 0}, {std::uint32_t(OutputLayer->width),
-							std::uint32_t(OutputLayer->height)}
-			   )}
-		);
+		const vk::Viewport OutputViewport = {
+			.x        = 0,
+			.y        = 0,
+			.width    = glm::f32(OutputLayer->width),
+			.height   = glm::f32(OutputLayer->height),
+			.minDepth = 0.0f,
+			.maxDepth = 1.0f,
+		};
+		Cmd.setViewport(0, {OutputViewport});
+		Cmd.setScissor(0, {OutputRect2D});
 
 		// Draw!!
 		Cmd.draw(4, 1, 0, 0);
@@ -1718,12 +1772,18 @@ PF_Err SmartRender(
 															   // finish writing
 			vk::PipelineStageFlagBits::eTransfer, // Get it ready for a read
 			vk::DependencyFlags(), {},
-			{// Staging buffer ready for a write
-			 vk::BufferMemoryBarrier(
-				 vk::AccessFlags(), vk::AccessFlagBits::eTransferWrite,
-				 VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-				 SequenceParam->Cache.StagingBuffer.get(), 0u, VK_WHOLE_SIZE
-			 )},
+			{
+				// Get Staging buffer ready for a write
+				vk::BufferMemoryBarrier{
+					.srcAccessMask       = vk::AccessFlags(),
+					.dstAccessMask       = vk::AccessFlagBits::eTransferWrite,
+					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+					.buffer = SequenceParam->Cache.StagingBuffer.get(),
+					.offset = 0u,
+					.size   = VK_WHOLE_SIZE,
+				},
+			},
 			{
 				//// Output Image ready for a read
 				// vk::ImageMemoryBarrier(
@@ -1752,9 +1812,10 @@ PF_Err SmartRender(
 	}
 
 	// Submit GPU work to queue
-	vk::SubmitInfo SubmitInfo     = {};
-	SubmitInfo.commandBufferCount = 1;
-	SubmitInfo.pCommandBuffers    = &Cmd;
+	const vk::SubmitInfo SubmitInfo = {
+		.commandBufferCount = 1,
+		.pCommandBuffers    = &Cmd,
+	};
 
 	if( auto SubmitResult
 		= GlobalParam->Queue.submit(SubmitInfo, SequenceParam->Fence.get());
@@ -1766,7 +1827,7 @@ PF_Err SmartRender(
 
 	// Wait for GPU work to finish
 	if( GlobalParam->Device->waitForFences(
-			{SequenceParam->Fence.get()}, true, ~0u
+			{SequenceParam->Fence.get()}, VK_TRUE, ~0u
 		)
 		!= vk::Result::eSuccess )
 	{
