@@ -3,3 +3,4 @@
 .cache
 build
 Vulkanator.aep
+.DS_Store
