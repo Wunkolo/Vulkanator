@@ -2,6 +2,7 @@
 #include "vulkan/vulkan.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <fstream>
 #include <iterator>
 
@@ -249,22 +250,75 @@ vk::MemoryHeap GetLargestPhysicalDeviceHeap(
 	return PhysicalDeviceMemoryProperties.memoryHeaps[HeapIndex];
 }
 
-// This function will be called whenever the Vulkan backend has something to say
-// about what you are doing How ever you want to handle this, implement it here.
-// For now, I put an "ASSERT" whenever there is a warning or error
-VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
-	VkDebugUtilsMessageTypeFlagsEXT             MessageType,
-	const VkDebugUtilsMessengerCallbackDataEXT* CallbackData, void* UserData
+std::uint8_t SeverityColor(vk::DebugUtilsMessageSeverityFlagBitsEXT Severity)
+{
+	switch( Severity )
+	{
+	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose:
+	{
+		// Dark Gray
+		return 90u;
+	}
+	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo:
+	{
+		// Light Gray
+		return 90u;
+	}
+	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning:
+	{
+		// Light Magenta
+		return 95u;
+	}
+	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eError:
+	{
+		// Light red
+		return 91u;
+	}
+	}
+	// Default Foreground Color
+	return 39u;
+}
+
+std::uint8_t MessageTypeColor(vk::DebugUtilsMessageTypeFlagsEXT MessageType)
+{
+	if( MessageType & vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral )
+	{
+		// Dim
+		return 2u;
+	}
+	if( MessageType & vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance )
+	{
+		// Bold/Bright
+		return 1u;
+	}
+	if( MessageType & vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation )
+	{
+		// Light Gray
+		return 90u;
+	}
+	// Default Foreground Color
+	return 39u;
+}
+
+VkBool32 DebugMessageCallback(
+	vk::DebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
+	vk::DebugUtilsMessageTypeFlagsEXT             MessageType,
+	const vk::DebugUtilsMessengerCallbackDataEXT& CallbackData, void* UserData
 )
 {
-	switch( vk::DebugUtilsMessageSeverityFlagBitsEXT(MessageSeverity) )
+	std::fprintf(
+		stderr, "\033[93m+ \033[%um[%s]: \033[%um%s\033[0m\n",
+		SeverityColor(MessageSeverity), CallbackData.pMessageIdName,
+		MessageTypeColor(MessageType), CallbackData.pMessage
+	);
+	std::fflush(stderr);
+
+	switch( MessageSeverity )
 	{
 	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eError:
 	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning:
 	{
 		// Something bad happened! Check message!
-		const char* Message = CallbackData->pMessage;
 		assert(0);
 	}
 	case vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo:
@@ -274,5 +328,20 @@ VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 	}
 	}
 	return VK_FALSE;
+}
+
+// This function will be called whenever the Vulkan backend has something to say
+// about what you are doing How ever you want to handle this, implement it here.
+// For now, I put an "ASSERT" whenever there is a warning or error
+VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT      MessageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT             MessageType,
+	const VkDebugUtilsMessengerCallbackDataEXT* CallbackData, void* UserData
+)
+{
+	return DebugMessageCallback(
+		vk::DebugUtilsMessageSeverityFlagBitsEXT(MessageSeverity),
+		vk::DebugUtilsMessageTypeFlagsEXT(MessageType), *CallbackData, UserData
+	);
 }
 } // namespace VulkanUtils
