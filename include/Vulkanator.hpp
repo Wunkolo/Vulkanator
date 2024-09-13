@@ -8,6 +8,7 @@
 #include <AEConfig.h>
 
 #include <AE_Effect.h>
+#include <AE_EffectSuites.h>
 #include <entry.h>
 
 #include "VulkanConfig.hpp"
@@ -103,11 +104,13 @@ struct SequenceParams
 		vk::UniqueBuffer       StagingBuffer       = {};
 		vk::UniqueDeviceMemory StagingBufferMemory = {};
 
-		// We use these structs so that we can easily "==" compare the image in
-		// the cache with any new requests coming in
-		vk::ImageCreateInfo InputImageInfoCache  = {};
+		// We use ImageCreateInfo so that we can easily "==" compare the image
+		// in the cache with the image being rendered for the current frame
+		// in the case that we can re-use the memory directly rather than
+		// allocating a new buffer
 		vk::ImageCreateInfo OutputImageInfoCache = {};
 
+		PF_State               InputImageState  = {};
 		vk::UniqueImage        InputImage       = {};
 		vk::UniqueDeviceMemory InputImageMemory = {};
 
