@@ -1277,7 +1277,7 @@ PF_Err SmartRender(
 	InputImageInfo.tiling      = vk::ImageTiling::eOptimal;
 	InputImageInfo.usage
 		= vk::ImageUsageFlagBits::eTransferSrc
-		| vk::ImageUsageFlagBits::eTransferDst // Will be trasnferring from the
+		| vk::ImageUsageFlagBits::eTransferDst // Will be transferring from the
 											   // staging buffer into this one
 		| vk::ImageUsageFlagBits::eSampled; // Will be sampling from this image
 	InputImageInfo.sharingMode   = vk::SharingMode::eExclusive;
@@ -1294,6 +1294,8 @@ PF_Err SmartRender(
 	));
 
 	// Compare hash of the currently uploaded texture against the cached one
+	// This primarily helps redundantly uploading the input texture in the case
+	// of still-images and hold-frames
 	A_Boolean InputImageStateIsSame = false;
 	ERR(suites.ParamUtilsSuite3()->PF_AreStatesIdentical(
 		in_data->effect_ref, &SequenceParam->Cache.InputImageState, &CurState,
@@ -1316,8 +1318,7 @@ PF_Err SmartRender(
 				  InputImageInfo, vk::MemoryPropertyFlagBits::eDeviceLocal
 			)
 				  .value();
-		SequenceParam->Cache.InputImageInfoCache = InputImageInfo;
-		SequenceParam->Cache.InputImageState     = CurState;
+		SequenceParam->Cache.InputImageState = CurState;
 	}
 
 	// This provides a mapping between the image contents and the staging
@@ -1348,8 +1349,6 @@ PF_Err SmartRender(
 		0, 1,                            // A single mipmap, mipmap 0
 		0, 1                             // A single image layer, layer 0
 	);
-
-	SequenceParam->Cache.InputImageInfoCache = InputImageInfo;
 
 	vk::UniqueImageView InputImageView = {};
 	if( auto ImageViewResult
